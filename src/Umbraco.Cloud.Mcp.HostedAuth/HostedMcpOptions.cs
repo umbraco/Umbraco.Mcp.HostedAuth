@@ -4,6 +4,13 @@ namespace Umbraco.Cloud.Mcp.HostedAuth;
 /// Configuration for the hosted MCP worker auth glue. Bound from the
 /// <c>HostedMcp</c> configuration section.
 /// </summary>
+/// <remarks>
+/// Which clients get registered is driven by <b>installed-package detection</b>
+/// (see <see cref="ProductCatalog"/>): the CMS baseline is always registered,
+/// and Commerce/Engage/Workflow are registered when their packages are present.
+/// The <see cref="Products"/> map is for <b>overrides only</b> — forcing a
+/// product on/off or customising a specific client.
+/// </remarks>
 public sealed class HostedMcpOptions
 {
     /// <summary>The configuration section this binds to.</summary>
@@ -15,25 +22,6 @@ public sealed class HostedMcpOptions
     /// concurrent-login revoke handler is left untouched.
     /// </summary>
     public bool Enabled { get; set; } = true;
-
-    /// <summary>Host-name product prefix, e.g. <c>cms</c> in <c>cms.editor.17.mcp.umbraco.ai</c>.</summary>
-    public string Product { get; set; } = "cms";
-
-    /// <summary>Base zone the worker origins live on.</summary>
-    public string Zone { get; set; } = "mcp.umbraco.ai";
-
-    /// <summary>
-    /// Umbraco major version baked into the worker origins. When null it is
-    /// derived from the loaded Umbraco assembly version.
-    /// </summary>
-    public int? MajorVersion { get; set; }
-
-    /// <summary>
-    /// Cloud project alias used in the tenant-prefixed callback path
-    /// (<c>/callback/{alias}</c>). When null it is read from
-    /// <c>umbraco-cloud.json</c> (<c>Deploy:Project:Alias</c>).
-    /// </summary>
-    public string? CloudAlias { get; set; }
 
     /// <summary>Per-client access-token lifetime override for the server-wide default.</summary>
     public TimeSpan AccessTokenLifetime { get; set; } = TimeSpan.FromHours(1);
@@ -47,26 +35,36 @@ public sealed class HostedMcpOptions
     /// <summary>Origin used for the local-dev wrangler callback.</summary>
     public string LocalhostCallback { get; set; } = "http://127.0.0.1:8787";
 
-    /// <summary>The MCP worker clients to register.</summary>
-    public List<HostedMcpClientOptions> Clients { get; set; } = [];
+    /// <summary>
+    /// Optional per-product overrides, keyed by product key (<c>cms</c>,
+    /// <c>commerce</c>, …). Absent products fall back to auto-detection and the
+    /// naming convention.
+    /// </summary>
+    public Dictionary<string, ProductOverrideOptions> Products { get; set; }
+        = new(StringComparer.OrdinalIgnoreCase);
 }
 
-/// <summary>
-/// A single hosted MCP worker client. Only <see cref="Type"/> is required; all
-/// other values are derived by convention unless overridden.
-/// </summary>
-public sealed class HostedMcpClientOptions
+/// <summary>Overrides for a single product.</summary>
+public sealed class ProductOverrideOptions
 {
     /// <summary>
-    /// Worker type label, e.g. <c>editor</c> or <c>developer</c>. Used as the
-    /// host-name segment and (by default) in the client id.
+    /// Force the product on (<c>true</c>) or off (<c>false</c>), bypassing
+    /// installed-package detection. <c>null</c> keeps auto-detection.
     /// </summary>
-    public string Type { get; set; } = string.Empty;
+    public bool? Enabled { get; set; }
 
+    /// <summary>Per-variant client overrides, keyed by variant (<c>editor</c>, <c>developer</c>).</summary>
+    public Dictionary<string, ClientOverrideOptions> Clients { get; set; }
+        = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Overrides for a single (product, variant) client.</summary>
+public sealed class ClientOverrideOptions
+{
     /// <summary>
-    /// Client id override. Defaults to <c>umbraco-{Product}-{Type}-mcp-hosted</c>.
-    /// Override is needed where the deployed worker's client id does not match
-    /// the type label (e.g. type <c>developer</c> with id <c>umbraco-cms-dev-mcp-hosted</c>).
+    /// Client id override. Defaults to <c>umbraco-{product}-{variant}-mcp-hosted</c>.
+    /// Needed where the deployed worker's id does not match the convention
+    /// (e.g. CMS <c>developer</c> uses <c>umbraco-cms-dev-mcp-hosted</c>).
     /// </summary>
     public string? ClientId { get; set; }
 
@@ -75,7 +73,7 @@ public sealed class HostedMcpClientOptions
 
     /// <summary>
     /// Explicit worker origins. When set, replaces the convention-derived list
-    /// (<c>https://{Product}.{Type}.{major}.[dev.]{Zone}</c>).
+    /// (<c>https://{product}.{variant}.{major}.[dev.]mcp.umbraco.ai</c>).
     /// </summary>
     public string[]? Origins { get; set; }
 }

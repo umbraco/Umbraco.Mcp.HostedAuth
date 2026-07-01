@@ -6,48 +6,66 @@ namespace Umbraco.Cloud.Mcp.HostedAuth;
 public sealed record ResolvedMcpClient(string ClientId, string DisplayName, IReadOnlyList<string> Origins);
 
 /// <summary>
-/// Turns <see cref="HostedMcpClientOptions"/> into <see cref="ResolvedMcpClient"/>s,
-/// applying the host-name convention and any per-client overrides.
+/// Produces the set of MCP clients to register by walking the
+/// <see cref="ProductCatalog"/>: a product is included when installed (or forced
+/// on via config), and each of its variants becomes a client whose id and
+/// origins follow the naming convention unless overridden.
 /// </summary>
 public static class HostedMcpClientResolver
 {
+    // The zone is fixed for all hosted MCP workers.
+    private const string Zone = "mcp.umbraco.ai";
+
     // Environment labels woven into the worker origin: prod is transparent, dev
     // carries the ".dev" label (e.g. cms.editor.17.mcp.umbraco.ai and
-    // cms.editor.17.dev.mcp.umbraco.ai).
+    // cms.editor.17.dev.mcp.umbraco.ai). Both are always registered so either
+    // worker can complete the flow.
     private static readonly string[] EnvironmentLabels = ["", "dev."];
 
-    /// <summary>
-    /// Resolves the Umbraco major version: explicit config wins, otherwise the
-    /// loaded Umbraco core assembly version.
-    /// </summary>
-    public static int ResolveMajorVersion(HostedMcpOptions options)
-        => options.MajorVersion
-           ?? typeof(IComposer).Assembly.GetName().Version?.Major
-           ?? throw new InvalidOperationException(
-               "Could not determine the Umbraco major version; set HostedMcp:MajorVersion explicitly.");
+    /// <summary>The Umbraco major version, derived from the loaded core assembly.</summary>
+    public static int MajorVersion
+        => typeof(IComposer).Assembly.GetName().Version?.Major
+           ?? throw new InvalidOperationException("Could not determine the Umbraco major version.");
 
     public static IReadOnlyList<ResolvedMcpClient> Resolve(HostedMcpOptions options)
     {
-        int major = ResolveMajorVersion(options);
-        return options.Clients.Select(client => Resolve(options, client, major)).ToList();
-    }
+        int major = MajorVersion;
+        var clients = new List<ResolvedMcpClient>();
 
-    private static ResolvedMcpClient Resolve(HostedMcpOptions options, HostedMcpClientOptions client, int major)
-    {
-        if (string.IsNullOrWhiteSpace(client.Type))
+        foreach (ProductDefinition product in ProductCatalog.Products)
         {
-            throw new InvalidOperationException("Each HostedMcp:Clients entry must specify a Type.");
+            options.Products.TryGetValue(product.Key, out ProductOverrideOptions? productOverride);
+
+            bool enabled = productOverride?.Enabled ?? InstalledProductDetector.IsInstalled(product);
+            if (!enabled)
+            {
+                continue;
+            }
+
+            foreach (string variant in product.Variants)
+            {
+                ClientOverrideOptions? clientOverride = null;
+                productOverride?.Clients.TryGetValue(variant, out clientOverride);
+
+                clients.Add(ResolveClient(product, variant, major, clientOverride));
+            }
         }
 
-        string clientId = client.ClientId
-            ?? $"umbraco-{options.Product}-{client.Type}-mcp-hosted";
+        return clients;
+    }
 
-        string displayName = client.DisplayName
-            ?? $"Umbraco {options.Product.ToUpperInvariant()} {Capitalize(client.Type)} MCP Worker";
+    private static ResolvedMcpClient ResolveClient(
+        ProductDefinition product, string variant, int major, ClientOverrideOptions? over)
+    {
+        string clientId = over?.ClientId
+            ?? $"umbraco-{product.Key}-{variant}-mcp-hosted";
 
-        IReadOnlyList<string> origins = client.Origins
+        string displayName = over?.DisplayName
+            ?? $"Umbraco {Capitalize(product.Key)} {Capitalize(variant)} MCP Worker";
+
+        IReadOnlyList<string> origins = over?.Origins
             ?? EnvironmentLabels
-                .Select(label => $"https://{options.Product}.{client.Type}.{major}.{label}{options.Zone}")
+                .Select(label => $"https://{product.Key}.{variant}.{major}.{label}{Zone}")
                 .ToArray();
 
         return new ResolvedMcpClient(clientId, displayName, origins);

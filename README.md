@@ -32,44 +32,67 @@ dotnet add package Umbraco.Cloud.Mcp.HostedAuth
 
 The `HostedMcpComposer` is discovered automatically — no `Program.cs` changes.
 
+## What gets registered
+
+Registration is **driven by installed packages** — you don't list clients. On
+startup the package walks a built-in catalog and registers a client per variant
+(`editor` + `developer`) for every product present:
+
+| Product | Registered when | Clients |
+|---|---|---|
+| CMS | always | `umbraco-cms-editor-mcp-hosted`, `umbraco-cms-developer-mcp-hosted` |
+| Commerce | `Umbraco.Commerce*` package installed | `umbraco-commerce-editor-mcp-hosted`, `umbraco-commerce-developer-mcp-hosted` |
+| Engage | `Umbraco.Engage*` package installed | `umbraco-engage-editor-mcp-hosted`, `umbraco-engage-developer-mcp-hosted` |
+| Workflow | `Umbraco.Workflow*` package installed | `umbraco-workflow-editor-mcp-hosted`, `umbraco-workflow-developer-mcp-hosted` |
+
+Detection reads the app's dependency context (`.deps.json`), so it reflects what
+is actually installed regardless of assembly load order.
+
 ## Configuration
 
-Add a `HostedMcp` section. Only `Type` per client is required; everything else
-is derived by convention and can be overridden.
+**None is required** — install the package and matching clients register
+themselves. The `HostedMcp` section exists for **overrides only**.
 
 ```jsonc
 {
   "HostedMcp": {
-    "Clients": [
-      { "Type": "editor" },
-      { "Type": "developer", "ClientId": "umbraco-cms-dev-mcp-hosted" }
-    ]
+    "Products": {
+      // CMS 'developer' worker's deployed id doesn't follow the convention yet:
+      "cms": {
+        "Clients": {
+          "developer": { "ClientId": "umbraco-cms-dev-mcp-hosted" }
+        }
+      },
+      // Force a product off even though its package is installed:
+      "engage": { "Enabled": false }
+    }
   }
 }
 ```
 
-### Full options
+### Options
 
 | Key | Default | Notes |
 |---|---|---|
 | `Enabled` | `true` | Master switch; `false` makes the package a no-op. |
-| `Product` | `cms` | Host-name prefix, e.g. `cms` in `cms.editor.17.mcp.umbraco.ai`. |
-| `Zone` | `mcp.umbraco.ai` | Base zone for worker origins. |
-| `MajorVersion` | *(derived)* | Umbraco major version in the origin; defaults to the loaded Umbraco assembly version. |
-| `CloudAlias` | *(derived)* | Tenant segment in `/callback/{alias}`; defaults to `Deploy:Project:Alias` from `umbraco-cloud.json`. |
 | `AccessTokenLifetime` | `01:00:00` | Per-client access-token lifetime. |
 | `RefreshTokenLifetime` | `08:00:00` | Per-client refresh-token lifetime. |
 | `IncludeLocalhostCallback` | `true` | Register the local wrangler dev callback. |
 | `LocalhostCallback` | `http://127.0.0.1:8787` | Origin for the local dev callback. |
-| `Clients[].Type` | — | **Required.** Worker type label (`editor`, `developer`, …). |
-| `Clients[].ClientId` | `umbraco-{Product}-{Type}-mcp-hosted` | Override when the deployed worker's id differs from the type label. |
-| `Clients[].DisplayName` | *(derived)* | OpenIddict display name. |
-| `Clients[].Origins` | *(derived)* | Replaces the convention-derived origin list. |
+| `Products.{key}.Enabled` | *(auto-detect)* | Force a product on/off, bypassing detection. |
+| `Products.{key}.Clients.{variant}.ClientId` | `umbraco-{key}-{variant}-mcp-hosted` | Override when the deployed worker's id differs. |
+| `Products.{key}.Clients.{variant}.DisplayName` | *(derived)* | OpenIddict display name. |
+| `Products.{key}.Clients.{variant}.Origins` | *(derived)* | Replaces the convention-derived origin list. |
+
+The zone (`mcp.umbraco.ai`), the Umbraco major version, and the Cloud alias are
+not configurable — the first two are fixed and the alias is read from
+`umbraco-cloud.json` (`Deploy:Project:Alias`).
 
 ### Derived URLs
 
-For each client, origins are `https://{Product}.{Type}.{Major}.[dev.]{Zone}`
-(prod + dev), and per origin the redirect/logout URIs are:
+For each client, origins are `https://{key}.{variant}.{major}.[dev.]mcp.umbraco.ai`
+(prod + dev — both are always registered), and per origin the redirect/logout
+URIs are:
 
 - `{origin}/callback` and `{origin}/callback/{alias}`
 - `{origin}/logout-callback` and `{origin}/logout-callback/{alias}`
@@ -92,6 +115,6 @@ Versioned via `Directory.Build.props`. Pushing a `v*` tag runs the
 NuGet.org using the `NUGET_API_KEY` repository secret.
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```

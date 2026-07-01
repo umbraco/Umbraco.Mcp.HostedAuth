@@ -2,7 +2,7 @@
 
   <!-- Shared metadata for all projects in this repo. -->
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Umbraco</Authors>
     <Company>Umbraco</Company>
     <Product>Umbraco Cloud Hosted MCP Auth</Product>

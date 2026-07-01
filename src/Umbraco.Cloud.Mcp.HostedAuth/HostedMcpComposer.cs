@@ -36,11 +36,6 @@ public sealed class HostedMcpComposer : IComposer
             return;
         }
 
-        if (options.Clients.Count == 0)
-        {
-            logger.LogWarning("[HostedMcp] Enabled but no HostedMcp:Clients configured.");
-        }
-
         builder.Services.Configure<HostedMcpOptions>(
             builder.Config.GetSection(HostedMcpOptions.SectionName));
 

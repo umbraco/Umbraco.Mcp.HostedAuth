@@ -37,7 +37,7 @@ public sealed class RegisterHostedMcpClientsHandler
         UmbracoApplicationStartingNotification notification,
         CancellationToken cancellationToken)
     {
-        string? alias = _aliasProvider.Resolve(_options);
+        string? alias = _aliasProvider.Resolve();
 
         foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options))
         {

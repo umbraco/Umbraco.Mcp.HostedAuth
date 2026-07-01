@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 namespace Umbraco.Cloud.Mcp.HostedAuth;
 
 /// <summary>
-/// Resolves the Cloud project alias used in the tenant-prefixed callback path.
-/// Prefers the explicit <c>HostedMcp:CloudAlias</c> config value, otherwise
-/// reads <c>umbraco-cloud.json</c> (<c>Deploy:Project:Alias</c>) from the
-/// content root.
+/// Resolves the Cloud project alias used in the tenant-prefixed callback path,
+/// read from <c>umbraco-cloud.json</c> (<c>Deploy:Project:Alias</c>) in the
+/// content root. This is always available on Umbraco Cloud, so it is derived
+/// rather than configured.
 /// </summary>
 public sealed class CloudAliasProvider
 {
@@ -22,22 +22,16 @@ public sealed class CloudAliasProvider
     }
 
     /// <summary>
-    /// Returns the resolved alias, or <c>null</c> when neither configured nor
+    /// Returns the Cloud project alias, or <c>null</c> when it is not
     /// discoverable (in which case tenant-prefixed callbacks are skipped).
     /// </summary>
-    public string? Resolve(HostedMcpOptions options)
+    public string? Resolve()
     {
-        if (!string.IsNullOrWhiteSpace(options.CloudAlias))
-        {
-            return options.CloudAlias;
-        }
-
         string path = Path.Combine(_environment.ContentRootPath, "umbraco-cloud.json");
         if (!File.Exists(path))
         {
             _logger.LogWarning(
-                "[HostedMcp] No HostedMcp:CloudAlias configured and {Path} not found; " +
-                "tenant-prefixed callback URIs will be skipped.", path);
+                "[HostedMcp] {Path} not found; tenant-prefixed callback URIs will be skipped.", path);
             return null;
         }
 
