@@ -108,6 +108,15 @@ everything **except** tokens issued to the configured MCP clients. The
 `UserSaved` / `UserDeleted` revocation is left intact, so disabling or deleting
 a user still kills their MCP session immediately.
 
+This carve-out **fails closed**: if the built-in revoke handler can't be found
+and removed (e.g. an unsupported CMS version changed it), the app throws at
+startup rather than silently letting both handlers run and revoke live MCP
+tokens.
+
+Client registration is **idempotent** — existing OpenIddict clients are updated
+in place (preserving the application id and any live refresh tokens), so warm
+restarts don't sever active MCP sessions.
+
 ## Releasing
 
 Versioned via `Directory.Build.props`. Pushing a `v*` tag runs the

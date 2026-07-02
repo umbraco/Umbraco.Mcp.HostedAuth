@@ -19,7 +19,11 @@ namespace Umbraco.Cloud.Mcp.HostedAuth;
 public sealed class HostedMcpComposer : IComposer
 {
     // The internal built-in handler we replace on the UserLoginSuccess path.
+    // Matched by simple name (resilient to namespace changes); full name is kept
+    // for diagnostics.
     private const string BuiltInRevokeHandlerTypeName =
+        "RevokeUserAuthenticationTokensNotificationHandler";
+    private const string BuiltInRevokeHandlerFullName =
         "Umbraco.Cms.Api.Management.Handlers.RevokeUserAuthenticationTokensNotificationHandler";
 
     public void Compose(IUmbracoBuilder builder)
@@ -61,28 +65,32 @@ public sealed class HostedMcpComposer : IComposer
 
     private static void RemoveBuiltInLoginRevokeHandler(IUmbracoBuilder builder, ILogger logger)
     {
+        // Match by simple type name (not full name) so a namespace change in the
+        // CMS doesn't silently defeat removal.
         List<ServiceDescriptor> toRemove = builder.Services
             .Where(d => d.ServiceType == typeof(INotificationAsyncHandler<UserLoginSuccessNotification>)
-                && d.ImplementationType?.FullName == BuiltInRevokeHandlerTypeName)
+                && d.ImplementationType?.Name == BuiltInRevokeHandlerTypeName)
             .ToList();
+
+        // Fail closed: if we can't remove the built-in handler, it would run
+        // alongside ours and revoke the very MCP tokens we spare — silently
+        // breaking sessions AND bypassing the safeguard. Better to stop startup
+        // with a clear message than ship a false sense of protection.
+        if (toRemove.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"[HostedMcp] Could not find the built-in '{BuiltInRevokeHandlerFullName}' registration "
+                + "for UserLoginSuccess to replace. This Umbraco version is not compatible with "
+                + "Umbraco.Cloud.Mcp.HostedAuth: without removing it, backoffice logins would revoke live "
+                + "MCP sessions. Upgrade the package or pin a supported CMS version.");
+        }
 
         foreach (ServiceDescriptor descriptor in toRemove)
         {
             builder.Services.Remove(descriptor);
         }
 
-        if (toRemove.Count == 0)
-        {
-            logger.LogWarning(
-                "[HostedMcp] Built-in '{Handler}' registration for UserLoginSuccess was not found; " +
-                "the MCP-aware revoke handler may run alongside it. This usually means the CMS " +
-                "internals changed — verify MCP tokens survive a backoffice login.",
-                BuiltInRevokeHandlerTypeName);
-        }
-        else
-        {
-            logger.LogInformation(
-                "[HostedMcp] Replaced built-in UserLoginSuccess token-revocation with MCP-aware handler.");
-        }
+        logger.LogInformation(
+            "[HostedMcp] Replaced built-in UserLoginSuccess token-revocation with MCP-aware handler.");
     }
 }
