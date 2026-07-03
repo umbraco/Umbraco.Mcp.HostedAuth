@@ -55,24 +55,26 @@ public sealed class RegisterHostedMcpClientsHandler
         }
 
         // The tenant-prefixed callback the hosted worker actually sends is
-        // /callback/{alias}, so a missing/invalid alias would produce clients
-        // whose only working callbacks are the legacy non-aliased ones — failing
-        // later with a cryptic invalid_redirect_uri. Fail closed: skip
+        // /callback/{siteId}, and the siteId differs per environment (live vs
+        // dev use different subdomains). We register a callback for every
+        // environment alias so any environment accepts the right one. A missing
+        // alias set would leave only the legacy non-aliased callback, failing
+        // later with a cryptic invalid_redirect_uri — so fail closed: skip
         // registration entirely (mutating nothing) rather than register unusable
         // clients.
-        string? alias = _aliasProvider.Resolve();
-        if (!IsValidAlias(alias))
+        List<string> aliases = _aliasProvider.ResolveAliases().Where(IsValidAlias).ToList();
+        if (aliases.Count == 0)
         {
             _logger.LogError(
-                "[HostedMcp] Cloud project alias could not be resolved or is invalid ('{Alias}'); "
-                + "skipping MCP client registration to avoid creating clients with unusable callback "
-                + "URIs. Ensure umbraco-cloud.json (Deploy:Project:Alias) is present and valid.", alias);
+                "[HostedMcp] No valid Cloud environment alias could be resolved; skipping MCP client "
+                + "registration to avoid creating clients with unusable callback URIs. Ensure "
+                + "umbraco-cloud.json (Deploy:Project:Alias / Workspaces) is present and valid.");
             return;
         }
 
         foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options))
         {
-            OpenIddictApplicationDescriptor descriptor = BuildDescriptor(client, alias!);
+            OpenIddictApplicationDescriptor descriptor = BuildDescriptor(client, aliases);
 
             object? existing = await _applicationManager.FindByClientIdAsync(client.ClientId, cancellationToken);
             if (existing is not null)
@@ -93,7 +95,7 @@ public sealed class RegisterHostedMcpClientsHandler
         }
     }
 
-    private OpenIddictApplicationDescriptor BuildDescriptor(ResolvedMcpClient client, string alias)
+    private OpenIddictApplicationDescriptor BuildDescriptor(ResolvedMcpClient client, IReadOnlyList<string> aliases)
     {
         var descriptor = new OpenIddictApplicationDescriptor
         {
@@ -129,14 +131,21 @@ public sealed class RegisterHostedMcpClientsHandler
             descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/logout-callback"));
 
             // Multi-tenant tenant-prefixed callback used by the Cloud preset's
-            // site router. This is the form the hosted worker actually sends.
-            descriptor.RedirectUris.Add(new Uri($"{origin}/callback/{alias}"));
-            descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/logout-callback/{alias}"));
+            // site router — one per environment alias, since the siteId in the
+            // path the worker sends is the environment's own subdomain.
+            foreach (string alias in aliases)
+            {
+                descriptor.RedirectUris.Add(new Uri($"{origin}/callback/{alias}"));
+                descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/logout-callback/{alias}"));
+            }
         }
 
         if (_options.IncludeLocalhostCallback)
         {
-            descriptor.RedirectUris.Add(new Uri($"{_options.LocalhostCallback}/callback/{alias}"));
+            foreach (string alias in aliases)
+            {
+                descriptor.RedirectUris.Add(new Uri($"{_options.LocalhostCallback}/callback/{alias}"));
+            }
         }
 
         return descriptor;

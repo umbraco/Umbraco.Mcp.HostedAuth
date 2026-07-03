@@ -98,6 +98,14 @@ URIs are:
 - `{origin}/logout-callback` and `{origin}/logout-callback/{alias}`
 - plus `{LocalhostCallback}/callback/{alias}` when enabled.
 
+`{alias}` is registered **once per Cloud environment**. The hosted Worker builds
+its callback as `/callback/{siteId}`, and the siteId is the environment's own
+subdomain — so live and dev use different aliases (e.g. `hosted-mcp-worker-test`
+vs `dev-hosted-mcp-worker-test`). All environment aliases are read from
+`umbraco-cloud.json` (`Deploy:Project:Alias` plus every `Deploy:Project:Workspaces[].Url`
+subdomain) and each is registered, so any environment accepts the callback the
+Worker actually sends.
+
 ## Concurrent logins
 
 By default Umbraco revokes **all** of a user's OpenIddict tokens on every
