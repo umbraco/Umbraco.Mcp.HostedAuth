@@ -98,13 +98,18 @@ URIs are:
 - `{origin}/logout-callback` and `{origin}/logout-callback/{alias}`
 - plus `{LocalhostCallback}/callback/{alias}` when enabled.
 
-`{alias}` is registered **once per Cloud environment**. The hosted Worker builds
-its callback as `/callback/{siteId}`, and the siteId is the environment's own
-subdomain — so live and dev use different aliases (e.g. `hosted-mcp-worker-test`
-vs `dev-hosted-mcp-worker-test`). All environment aliases are read from
-`umbraco-cloud.json` (`Deploy:Project:Alias` plus every `Deploy:Project:Workspaces[].Url`
-subdomain) and each is registered, so any environment accepts the callback the
-Worker actually sends.
+`{alias}` is the environment's siteId. The hosted Worker builds its callback as
+`/callback/{siteId}`, and the siteId is the environment's own subdomain — so live
+and dev use different aliases (e.g. `hosted-mcp-worker-test` vs
+`dev-hosted-mcp-worker-test`), read from `umbraco-cloud.json`
+(`Deploy:Project:Workspaces[].Url`).
+
+To keep the redirect-URI allowlist minimal, only the **current** environment's
+alias is registered — identified via `DOTNET_ENVIRONMENT` (which Umbraco Cloud
+sets per environment to the workspace name, e.g. `Live`/`Dev`) matched against the
+workspaces. When the environment can't be identified (local dev, or an
+unrecognised value), it falls back to registering **all** environment aliases, so
+registration is always correct.
 
 ## Concurrent logins
 

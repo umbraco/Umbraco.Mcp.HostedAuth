@@ -5,17 +5,22 @@ using Microsoft.Extensions.Logging;
 namespace Umbraco.Cloud.Mcp.HostedAuth;
 
 /// <summary>
-/// Resolves the Cloud environment aliases (siteIds) used in the tenant-prefixed
+/// Resolves the Cloud environment alias(es) (siteIds) used in the tenant-prefixed
 /// callback path, read from <c>umbraco-cloud.json</c> in the content root.
 /// </summary>
 /// <remarks>
 /// The hosted Worker builds its callback as <c>/callback/{siteId}</c>, where the
 /// siteId is the environment's own subdomain — so live and dev use *different*
 /// aliases (<c>hosted-mcp-worker-test</c> vs <c>dev-hosted-mcp-worker-test</c>).
-/// The same <c>umbraco-cloud.json</c> is deployed to every environment and lists
-/// them all under <c>Deploy:Project:Workspaces[].Url</c>, so we register a
-/// callback for each — meaning any environment accepts the callback for whichever
-/// environment the Worker is routing.
+/// <para>
+/// When the current environment can be identified — via <c>DOTNET_ENVIRONMENT</c>,
+/// which Umbraco Cloud sets per environment to the workspace name (e.g. "Live",
+/// "Dev") — only that environment's alias is registered. Otherwise (local dev, or
+/// an unrecognised value) it falls back to registering every environment's alias,
+/// so registration is always correct even when the environment can't be pinned
+/// down. The committed <c>umbraco-cloud.json</c> is identical across environments,
+/// so this env var is the only reliable per-environment signal.
+/// </para>
 /// </remarks>
 public sealed class CloudAliasProvider
 {
@@ -28,10 +33,12 @@ public sealed class CloudAliasProvider
         _logger = logger;
     }
 
+    private sealed record Workspace(string? Name, string? Type, string SiteId);
+
     /// <summary>
-    /// Returns the distinct Cloud environment aliases (the project alias plus the
-    /// subdomain of every workspace URL), or an empty list when none are
-    /// discoverable.
+    /// Returns the callback alias(es) to register: just the current environment's
+    /// when it can be identified, otherwise all known environment aliases. Empty
+    /// when none are discoverable.
     /// </summary>
     public IReadOnlyList<string> ResolveAliases()
     {
@@ -43,16 +50,8 @@ public sealed class CloudAliasProvider
             return [];
         }
 
-        // Preserve insertion order (project alias first) while de-duplicating.
-        var aliases = new List<string>();
-        void Add(string? value)
-        {
-            if (!string.IsNullOrWhiteSpace(value)
-                && !aliases.Contains(value, StringComparer.OrdinalIgnoreCase))
-            {
-                aliases.Add(value);
-            }
-        }
+        string? projectAlias = null;
+        var workspaces = new List<Workspace>();
 
         try
         {
@@ -65,19 +64,28 @@ public sealed class CloudAliasProvider
                 if (project.TryGetProperty("Alias", out JsonElement alias)
                     && alias.ValueKind == JsonValueKind.String)
                 {
-                    Add(alias.GetString());
+                    projectAlias = alias.GetString();
                 }
 
-                if (project.TryGetProperty("Workspaces", out JsonElement workspaces)
-                    && workspaces.ValueKind == JsonValueKind.Array)
+                if (project.TryGetProperty("Workspaces", out JsonElement workspacesElement)
+                    && workspacesElement.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (JsonElement workspace in workspaces.EnumerateArray())
+                    foreach (JsonElement workspace in workspacesElement.EnumerateArray())
                     {
-                        if (workspace.TryGetProperty("Url", out JsonElement url)
-                            && url.ValueKind == JsonValueKind.String)
+                        string? siteId = workspace.TryGetProperty("Url", out JsonElement url)
+                            && url.ValueKind == JsonValueKind.String
+                                ? ExtractSiteId(url.GetString())
+                                : null;
+
+                        if (string.IsNullOrWhiteSpace(siteId))
                         {
-                            Add(ExtractSiteId(url.GetString()));
+                            continue;
                         }
+
+                        workspaces.Add(new Workspace(
+                            GetString(workspace, "Name"),
+                            GetString(workspace, "Type"),
+                            siteId));
                     }
                 }
             }
@@ -90,8 +98,61 @@ public sealed class CloudAliasProvider
             return [];
         }
 
-        return aliases;
+        // Prefer the single current-environment alias when we can identify it.
+        string? currentEnvironment = CurrentEnvironmentName();
+        Workspace? current = workspaces.FirstOrDefault(w =>
+            Matches(w.Name, currentEnvironment) || Matches(w.Type, currentEnvironment));
+
+        if (current is not null)
+        {
+            _logger.LogInformation(
+                "[HostedMcp] Environment '{Environment}' matched workspace '{Workspace}'; "
+                + "registering only its callback alias '{Alias}'.",
+                currentEnvironment, current.Name ?? current.Type, current.SiteId);
+            return [current.SiteId];
+        }
+
+        // Fallback: register every environment's alias (safe when the current
+        // environment can't be pinned down, e.g. local dev).
+        var all = new List<string>();
+        Add(all, projectAlias);
+        foreach (Workspace workspace in workspaces)
+        {
+            Add(all, workspace.SiteId);
+        }
+
+        _logger.LogInformation(
+            "[HostedMcp] Could not match environment '{Environment}' to a workspace; "
+            + "registering all {Count} known environment alias(es).",
+            currentEnvironment ?? "(unknown)", all.Count);
+        return all;
     }
+
+    // Umbraco Cloud sets DOTNET_ENVIRONMENT per environment to the workspace name
+    // (e.g. "Live", "Dev"). Fall back to the host environment name otherwise.
+    private string? CurrentEnvironmentName()
+    {
+        string? value = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+        return string.IsNullOrWhiteSpace(value) ? _environment.EnvironmentName : value;
+    }
+
+    private static bool Matches(string? candidate, string? environment)
+        => !string.IsNullOrWhiteSpace(candidate)
+           && string.Equals(candidate, environment, StringComparison.OrdinalIgnoreCase);
+
+    private static void Add(List<string> aliases, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)
+            && !aliases.Contains(value, StringComparer.OrdinalIgnoreCase))
+        {
+            aliases.Add(value);
+        }
+    }
+
+    private static string? GetString(JsonElement element, string property)
+        => element.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     // The siteId is the first host label of the workspace URL, e.g.
     // https://dev-hosted-mcp-worker-test.euwest01.umbraco.io -> dev-hosted-mcp-worker-test
