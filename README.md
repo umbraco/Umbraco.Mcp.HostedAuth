@@ -104,12 +104,14 @@ and dev use different aliases (e.g. `hosted-mcp-worker-test` vs
 `dev-hosted-mcp-worker-test`), read from `umbraco-cloud.json`
 (`Deploy:Project:Workspaces[].Url`).
 
-To keep the redirect-URI allowlist minimal, only the **current** environment's
-alias is registered — identified via `DOTNET_ENVIRONMENT` (which Umbraco Cloud
-sets per environment to the workspace name, e.g. `Live`/`Dev`) matched against the
-workspaces. When the environment can't be identified (local dev, or an
-unrecognised value), it falls back to registering **all** environment aliases, so
-registration is always correct.
+To keep the redirect-URI allowlist minimal, the callbacks are **narrowed to the
+current environment** at runtime. Startup registers all known aliases as a safe
+baseline; then on the first request served on a recognised
+`{siteId}.{region}.umbraco.io` host, the clients are rewritten to that single
+siteId's callbacks. The host is ground truth — immune to how `DOTNET_ENVIRONMENT`
+is configured — and narrowing only ever acts on siteIds listed in
+`umbraco-cloud.json`, so an unexpected host can't wipe the allowlist. Locally (no
+`*.umbraco.io` host) it simply stays on the all-aliases baseline.
 
 ## Concurrent logins
 

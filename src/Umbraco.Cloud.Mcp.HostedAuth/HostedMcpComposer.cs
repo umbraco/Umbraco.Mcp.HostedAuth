@@ -1,12 +1,16 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenIddict.Abstractions;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Web.Common.ApplicationBuilder;
 
 namespace Umbraco.Cloud.Mcp.HostedAuth;
 
@@ -45,10 +49,16 @@ public sealed class HostedMcpComposer : IComposer
 
         builder.Services.AddSingleton<CloudAliasProvider>();
         builder.Services.AddSingleton<ProtectedMcpApplicationStore>();
+        builder.Services.AddSingleton<HostedMcpAliasReconciler>();
 
-        // Register the OAuth clients on startup.
+        // Register the OAuth clients on startup (baseline: all known aliases).
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartingNotification,
             RegisterHostedMcpClientsHandler>();
+
+        // Runtime narrowing: on the first request served on a recognised
+        // {siteId}.{region}.umbraco.io host, narrow the callbacks to that
+        // environment — ground truth, immune to how DOTNET_ENVIRONMENT is set.
+        RegisterAliasNarrowingMiddleware(builder);
 
         // Cold-start SSO short-circuit on the back-office cookie scheme.
         builder.Services.AddSingleton<IPostConfigureOptions<CookieAuthenticationOptions>,
@@ -61,6 +71,29 @@ public sealed class HostedMcpComposer : IComposer
         RemoveBuiltInLoginRevokeHandler(builder, logger);
         builder.AddNotificationAsyncHandler<UserLoginSuccessNotification,
             McpAwareRevokeOnLoginHandler>();
+    }
+
+    private static void RegisterAliasNarrowingMiddleware(IUmbracoBuilder builder)
+    {
+        builder.Services.Configure<UmbracoPipelineOptions>(options =>
+            options.AddFilter(new UmbracoPipelineFilter("HostedMcpAliasNarrowing")
+            {
+                PrePipeline = app => app.Use(async (context, next) =>
+                {
+                    string? siteId = HostedMcpAliasReconciler.ExtractSiteId(context.Request.Host.Host);
+                    if (siteId is not null)
+                    {
+                        HostedMcpAliasReconciler reconciler =
+                            context.RequestServices.GetRequiredService<HostedMcpAliasReconciler>();
+                        IOpenIddictApplicationManager applicationManager =
+                            context.RequestServices.GetRequiredService<IOpenIddictApplicationManager>();
+
+                        await reconciler.EnsureNarrowedAsync(siteId, applicationManager, context.RequestAborted);
+                    }
+
+                    await next();
+                })
+            }));
     }
 
     private static void RemoveBuiltInLoginRevokeHandler(IUmbracoBuilder builder, ILogger logger)

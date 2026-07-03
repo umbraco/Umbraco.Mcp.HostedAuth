@@ -1,5 +1,3 @@
-using System.Globalization;
-using Microsoft.Extensions.DependencyModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -10,8 +8,9 @@ namespace Umbraco.Cloud.Mcp.HostedAuth;
 
 /// <summary>
 /// Registers each configured hosted MCP worker as an OpenIddict
-/// authorization_code public client so the worker can authenticate users via
-/// the Umbraco backoffice.
+/// authorization_code public client on startup, using every known environment
+/// alias as a safe baseline. The runtime <see cref="HostedMcpAliasReconciler"/>
+/// then narrows the callbacks to the environment actually being served.
 /// </summary>
 /// <remarks>
 /// Registration is <b>idempotent</b>: existing clients are updated in place
@@ -43,25 +42,12 @@ public sealed class RegisterHostedMcpClientsHandler
         UmbracoApplicationStartingNotification notification,
         CancellationToken cancellationToken)
     {
-        // Product auto-detection needs the dependency context. When it is
-        // unavailable, detection is indeterminate rather than "not installed":
-        // warn so the operator knows only the CMS baseline and explicitly
-        // enabled products (HostedMcp:Products:{key}:Enabled=true) will register.
-        if (DependencyContext.Default is null)
-        {
-            _logger.LogWarning(
-                "[HostedMcp] Dependency context unavailable; product auto-detection is disabled. "
-                + "Only the CMS baseline and explicitly enabled products will be registered.");
-        }
-
-        // The tenant-prefixed callback the hosted worker actually sends is
-        // /callback/{siteId}, and the siteId differs per environment (live vs
-        // dev use different subdomains). We register a callback for every
-        // environment alias so any environment accepts the right one. A missing
-        // alias set would leave only the legacy non-aliased callback, failing
-        // later with a cryptic invalid_redirect_uri — so fail closed: skip
-        // registration entirely (mutating nothing) rather than register unusable
-        // clients.
+        // Baseline: register every known environment alias so authentication
+        // works on any environment immediately, before the runtime reconciler
+        // narrows to the actual one. A missing alias set would leave only the
+        // legacy non-aliased callback, failing later with a cryptic
+        // invalid_redirect_uri — so fail closed: skip registration (mutating
+        // nothing) rather than register unusable clients.
         List<string> aliases = _aliasProvider.ResolveAliases().Where(IsValidAlias).ToList();
         if (aliases.Count == 0)
         {
@@ -74,7 +60,8 @@ public sealed class RegisterHostedMcpClientsHandler
 
         foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options))
         {
-            OpenIddictApplicationDescriptor descriptor = BuildDescriptor(client, aliases);
+            OpenIddictApplicationDescriptor descriptor =
+                HostedMcpDescriptorFactory.Build(client, aliases, _options);
 
             object? existing = await _applicationManager.FindByClientIdAsync(client.ClientId, cancellationToken);
             if (existing is not null)
@@ -93,62 +80,6 @@ public sealed class RegisterHostedMcpClientsHandler
                     client.ClientId, descriptor.RedirectUris.Count);
             }
         }
-    }
-
-    private OpenIddictApplicationDescriptor BuildDescriptor(ResolvedMcpClient client, IReadOnlyList<string> aliases)
-    {
-        var descriptor = new OpenIddictApplicationDescriptor
-        {
-            ClientId = client.ClientId,
-            ClientType = OpenIddictConstants.ClientTypes.Public,
-            DisplayName = client.DisplayName,
-            Permissions =
-            {
-                OpenIddictConstants.Permissions.Endpoints.Authorization,
-                OpenIddictConstants.Permissions.Endpoints.Token,
-                OpenIddictConstants.Permissions.Endpoints.Revocation,
-                OpenIddictConstants.Permissions.Endpoints.EndSession,
-                OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
-                OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
-                OpenIddictConstants.Permissions.ResponseTypes.Code,
-            },
-            // Per-client token lifetimes override the server-wide defaults
-            // (derived from Umbraco:CMS:Global:TimeOut). Hosted MCP sessions
-            // sit idle between tool calls, so we extend them here.
-            Settings =
-            {
-                [OpenIddictConstants.Settings.TokenLifetimes.AccessToken]
-                    = _options.AccessTokenLifetime.ToString("c", CultureInfo.InvariantCulture),
-                [OpenIddictConstants.Settings.TokenLifetimes.RefreshToken]
-                    = _options.RefreshTokenLifetime.ToString("c", CultureInfo.InvariantCulture),
-            }
-        };
-
-        foreach (string origin in client.Origins)
-        {
-            // Single-tenant fallback (legacy callback path).
-            descriptor.RedirectUris.Add(new Uri($"{origin}/callback"));
-            descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/logout-callback"));
-
-            // Multi-tenant tenant-prefixed callback used by the Cloud preset's
-            // site router — one per environment alias, since the siteId in the
-            // path the worker sends is the environment's own subdomain.
-            foreach (string alias in aliases)
-            {
-                descriptor.RedirectUris.Add(new Uri($"{origin}/callback/{alias}"));
-                descriptor.PostLogoutRedirectUris.Add(new Uri($"{origin}/logout-callback/{alias}"));
-            }
-        }
-
-        if (_options.IncludeLocalhostCallback)
-        {
-            foreach (string alias in aliases)
-            {
-                descriptor.RedirectUris.Add(new Uri($"{_options.LocalhostCallback}/callback/{alias}"));
-            }
-        }
-
-        return descriptor;
     }
 
     // A project alias becomes a single URL path segment, so it must be non-empty
