@@ -1,4 +1,4 @@
-# Umbraco.Cloud.Mcp.HostedAuth
+# Umbraco.Mcp.Cloud.HostedAuth
 
 Auth glue that wires hosted Umbraco **MCP Cloudflare Workers** into the Umbraco
 backoffice OAuth flow on Umbraco Cloud. Install the package, add a small
@@ -27,7 +27,7 @@ It does three things:
 ## Install
 
 ```bash
-dotnet add package Umbraco.Cloud.Mcp.HostedAuth
+dotnet add package Umbraco.Mcp.Cloud.HostedAuth
 ```
 
 The `HostedMcpComposer` is discovered automatically — no `Program.cs` changes.
@@ -139,6 +139,6 @@ Versioned via `Directory.Build.props`. Pushing a `v*` tag runs the
 NuGet.org using the `NUGET_API_KEY` repository secret.
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.7.0
+git push origin v0.7.0
 ```

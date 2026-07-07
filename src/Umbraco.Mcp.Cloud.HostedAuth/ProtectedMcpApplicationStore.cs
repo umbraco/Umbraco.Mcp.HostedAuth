@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// Caches the OpenIddict application ids of the configured MCP clients so the

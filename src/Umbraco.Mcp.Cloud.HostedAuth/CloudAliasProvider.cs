@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// Resolves the known Cloud environment aliases (siteIds) from

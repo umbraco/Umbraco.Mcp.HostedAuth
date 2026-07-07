@@ -12,7 +12,7 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Web.Common.ApplicationBuilder;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// Wires the hosted MCP worker auth glue into Umbraco: registers the configured

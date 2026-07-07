@@ -1,7 +1,7 @@
 using System.Globalization;
 using OpenIddict.Abstractions;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// Builds the OpenIddict application descriptor for a hosted MCP client. Shared

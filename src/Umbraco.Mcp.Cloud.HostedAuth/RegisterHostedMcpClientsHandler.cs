@@ -4,7 +4,7 @@ using OpenIddict.Abstractions;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// Registers each configured hosted MCP worker as an OpenIddict

@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
 
     <IsPackable>true</IsPackable>
-    <PackageId>Umbraco.Cloud.Mcp.HostedAuth</PackageId>
-    <Title>Umbraco Cloud Hosted MCP Auth</Title>
+    <PackageId>Umbraco.Mcp.Cloud.HostedAuth</PackageId>
+    <Title>Umbraco MCP Cloud Hosted Auth</Title>
     <Description>
       Wires hosted Umbraco MCP Cloudflare Workers into the backoffice OAuth flow:
       registers the workers as OpenIddict authorization_code clients, fixes

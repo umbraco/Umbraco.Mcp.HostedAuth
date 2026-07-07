@@ -1,4 +1,4 @@
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// Configuration for the hosted MCP worker auth glue. Bound from the

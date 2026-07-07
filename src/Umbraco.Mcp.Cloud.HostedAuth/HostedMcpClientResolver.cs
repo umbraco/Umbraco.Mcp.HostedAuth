@@ -1,6 +1,6 @@
 using Umbraco.Cms.Core.Composing;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>A hosted MCP client with all convention-derived values resolved.</summary>
 public sealed record ResolvedMcpClient(string ClientId, string DisplayName, IReadOnlyList<string> Origins);

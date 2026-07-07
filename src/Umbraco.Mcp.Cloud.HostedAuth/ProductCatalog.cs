@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyModel;
 
-namespace Umbraco.Cloud.Mcp.HostedAuth;
+namespace Umbraco.Mcp.Cloud.HostedAuth;
 
 /// <summary>
 /// A product that can expose hosted MCP workers.
