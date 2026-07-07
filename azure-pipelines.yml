@@ -34,7 +34,7 @@ pool:
 variables:
   buildConfiguration: Release
   project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
-  pushSource: https://www.myget.org/F/umbracoprereleases/api/v2/package
+  pushSource: https://www.myget.org/F/umbracoprereleases/api/v3/index.json
 
 steps:
   - task: UseDotNet@2
