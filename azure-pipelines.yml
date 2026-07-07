@@ -3,14 +3,13 @@
 # Builds, packs, and publishes the package to the PUBLIC Umbraco pre-releases
 # MyGet feed: https://www.myget.org/F/umbracoprereleases
 #
-# One-time setup in Azure DevOps:
-#   - Add a SECRET pipeline variable named MYGET_API_KEY containing a MyGet API
-#     key with PUSH rights to the umbracoprereleases feed. Never commit the key.
+# Auth: uses the existing ADO NuGet service connection "NuGet MyGet Prereleases
+# Feed" (it holds the feed URL + push API key) — no secret variables to manage.
 #
 # Versioning: the package version comes from Directory.Build.props. Bump it there
-# for a new release — `--skip-duplicate` makes re-runs on an unchanged version a
-# no-op. For a fresh prerelease on every commit, add a suffix (see the commented
-# alternative Pack step).
+# for a new release; the push fails if that version already exists on the feed,
+# so bump per release. For a fresh prerelease on every commit, add a suffix (see
+# the commented alternative Pack step).
 
 trigger:
   branches:
@@ -30,7 +29,6 @@ pool:
 variables:
   buildConfiguration: Release
   project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
-  pushSource: https://www.myget.org/F/umbracoprereleases/api/v2/package
 
 steps:
   - task: UseDotNet@2
@@ -58,8 +56,11 @@ steps:
     artifact: nupkg
     displayName: Publish build artifact
 
-  - script: dotnet nuget push "$(Build.ArtifactStagingDirectory)/*.nupkg" --source "$(pushSource)" --api-key "$MYGET_API_KEY" --skip-duplicate
+  - task: NuGetCommand@2
     displayName: Push to umbracoprereleases
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    env:
-      MYGET_API_KEY: $(MYGET_API_KEY)
+    inputs:
+      command: push
+      packagesToPush: $(Build.ArtifactStagingDirectory)/*.nupkg
+      nuGetFeedType: external
+      publishFeedCredentials: NuGet MyGet Prereleases Feed
