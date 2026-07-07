@@ -3,15 +3,14 @@
 # Builds, packs, and publishes the package to the PUBLIC Umbraco pre-releases
 # MyGet feed: https://www.myget.org/F/umbracoprereleases
 #
-# Auth: uses the ADO NuGet service connection "NuGet MyGet Prereleases Feed"
-# (it holds the feed URL + push API key) — no secret variables to manage.
-#
-# Runs on a Windows agent: the push uses NuGetCommand@2 (nuget.exe), which needs
-# Mono on Linux — and ubuntu-latest (24.04) no longer ships Mono. Windows runs
-# nuget.exe natively.
+# Auth: uses the ADO NuGet service connection "NuGet MyGet Prereleases Feed" via
+# NuGetAuthenticate@1 (the cross-platform Artifacts Credential Provider) — no
+# secret variables to manage. Everything runs with the .NET SDK, so no nuget.exe
+# and no Mono (which is why this runs fine on ubuntu-latest / 24.04).
 #
 # Versioning: the package version comes from Directory.Build.props. Bump it there
-# for a new release; the push fails if that version already exists on the feed.
+# for a new release; --skip-duplicate makes re-runs on an unchanged version a
+# no-op.
 
 trigger:
   branches:
@@ -26,11 +25,12 @@ trigger:
 pr: none
 
 pool:
-  vmImage: windows-latest
+  vmImage: ubuntu-latest
 
 variables:
   buildConfiguration: Release
   project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
+  pushSource: https://www.myget.org/F/umbracoprereleases/api/v3/index.json
 
 steps:
   - task: UseDotNet@2
@@ -52,14 +52,11 @@ steps:
     artifact: nupkg
     displayName: Publish build artifact
 
-  - task: NuGetToolInstaller@1
-    displayName: Install NuGet
+  - task: NuGetAuthenticate@1
+    displayName: Authenticate to MyGet
+    inputs:
+      nuGetServiceConnections: NuGet MyGet Prereleases Feed
 
-  - task: NuGetCommand@2
+  - script: dotnet nuget push "$(Build.ArtifactStagingDirectory)/*.nupkg" --source "$(pushSource)" --api-key az --skip-duplicate
     displayName: Push to umbracoprereleases
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    inputs:
-      command: push
-      packagesToPush: $(Build.ArtifactStagingDirectory)/*.nupkg
-      nuGetFeedType: external
-      publishFeedCredentials: NuGet MyGet Prereleases Feed
