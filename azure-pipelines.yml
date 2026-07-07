@@ -1,20 +1,18 @@
 # Azure DevOps pipeline for Umbraco.Mcp.Cloud.HostedAuth
 #
-# Builds, packs, and publishes the package to the PUBLIC Umbraco pre-releases
-# MyGet feed: https://www.myget.org/F/umbracoprereleases
+# Two stages (CI packs, "release" pushes — the Umbraco pattern, all in YAML):
+#   Build   - ubuntu, .NET SDK: build + pack, publish the .nupkg as an artifact.
+#   Publish - a deployment job to the 'umbracoprereleases' environment; pushes to
+#             the MyGet feed via the "NuGet MyGet Prereleases Feed" service
+#             connection. Runs on windows-latest because that service connection
+#             is an ApiKey type, which only NuGetCommand@2 (nuget.exe) can consume
+#             — and nuget.exe needs Mono on Linux (removed from ubuntu 24.04), so
+#             the tiny push step runs on Windows where nuget.exe is native.
 #
-# Auth: `dotnet nuget push --api-key` with a SECRET pipeline variable.
-#   - Add a secret pipeline variable named MYGET_API_KEY containing a MyGet API
-#     key with PUSH rights to the umbracoprereleases feed. Never commit the key.
-#   NOTE: the "NuGet MyGet Prereleases Feed" service connection is an *ApiKey*
-#   connection, which NuGetAuthenticate@1 / the cross-platform credential
-#   provider do NOT support (only the legacy nuget.exe-based NuGetCommand@2 does,
-#   and that needs Mono on Linux). Using the key directly keeps this on the .NET
-#   SDK — no nuget.exe, no Mono — so it runs on ubuntu-latest.
+# Add an approval on the 'umbracoprereleases' environment (Pipelines ->
+# Environments) if you want a manual gate before publishing.
 #
-# Versioning: the package version comes from Directory.Build.props. Bump it there
-# for a new release; --skip-duplicate makes re-runs on an unchanged version a
-# no-op.
+# Versioning: package version comes from Directory.Build.props.
 
 trigger:
   branches:
@@ -28,36 +26,63 @@ trigger:
 
 pr: none
 
-pool:
-  vmImage: ubuntu-latest
-
 variables:
   buildConfiguration: Release
   project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
-  pushSource: https://www.myget.org/F/umbracoprereleases/api/v3/index.json
 
-steps:
-  - task: UseDotNet@2
-    displayName: Install .NET 10 SDK
-    inputs:
-      packageType: sdk
-      version: 10.0.x
+stages:
+  - stage: Build
+    displayName: Build & Pack
+    jobs:
+      - job: Pack
+        displayName: Build and pack
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UseDotNet@2
+            displayName: Install .NET 10 SDK
+            inputs:
+              packageType: sdk
+              version: 10.0.x
 
-  - script: dotnet restore "$(project)"
-    displayName: Restore
+          - script: dotnet restore "$(project)"
+            displayName: Restore
 
-  - script: dotnet build "$(project)" --configuration $(buildConfiguration) --no-restore
-    displayName: Build
+          - script: dotnet build "$(project)" --configuration $(buildConfiguration) --no-restore
+            displayName: Build
 
-  - script: dotnet pack "$(project)" --configuration $(buildConfiguration) --no-build --output "$(Build.ArtifactStagingDirectory)"
-    displayName: Pack
+          - script: dotnet pack "$(project)" --configuration $(buildConfiguration) --no-build --output "$(Build.ArtifactStagingDirectory)/nupkg"
+            displayName: Pack
 
-  - publish: $(Build.ArtifactStagingDirectory)
-    artifact: nupkg
-    displayName: Publish build artifact
+          - publish: $(Build.ArtifactStagingDirectory)/nupkg
+            artifact: nupkg
+            displayName: Publish package artifact
 
-  - script: dotnet nuget push "$(Build.ArtifactStagingDirectory)/*.nupkg" --source "$(pushSource)" --api-key "$MYGET_API_KEY" --skip-duplicate
-    displayName: Push to umbracoprereleases
+  - stage: Publish
+    displayName: Publish to umbracoprereleases
+    dependsOn: Build
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-    env:
-      MYGET_API_KEY: $(MYGET_API_KEY)
+    jobs:
+      - deployment: Push
+        displayName: Push to MyGet
+        pool:
+          vmImage: windows-latest
+        environment: umbracoprereleases
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: nupkg
+                  displayName: Download package artifact
+
+                - task: NuGetToolInstaller@1
+                  displayName: Install NuGet
+
+                - task: NuGetCommand@2
+                  displayName: Push to umbracoprereleases
+                  inputs:
+                    command: push
+                    packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
+                    nuGetFeedType: external
+                    publishFeedCredentials: NuGet MyGet Prereleases Feed
