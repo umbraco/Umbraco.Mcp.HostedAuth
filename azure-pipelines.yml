@@ -1,0 +1,65 @@
+# Azure DevOps pipeline for Umbraco.Mcp.Cloud.HostedAuth
+#
+# Builds, packs, and publishes the package to the PUBLIC Umbraco pre-releases
+# MyGet feed: https://www.myget.org/F/umbracoprereleases
+#
+# One-time setup in Azure DevOps:
+#   - Add a SECRET pipeline variable named MYGET_API_KEY containing a MyGet API
+#     key with PUSH rights to the umbracoprereleases feed. Never commit the key.
+#
+# Versioning: the package version comes from Directory.Build.props. Bump it there
+# for a new release — `--skip-duplicate` makes re-runs on an unchanged version a
+# no-op. For a fresh prerelease on every commit, add a suffix (see the commented
+# alternative Pack step).
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/**
+      - Directory.Build.props
+      - azure-pipelines.yml
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  buildConfiguration: Release
+  project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
+  pushSource: https://www.myget.org/F/umbracoprereleases/api/v2/package
+
+steps:
+  - task: UseDotNet@2
+    displayName: Install .NET 10 SDK
+    inputs:
+      packageType: sdk
+      version: 10.0.x
+
+  - script: dotnet restore "$(project)"
+    displayName: Restore
+
+  - script: dotnet build "$(project)" --configuration $(buildConfiguration) --no-restore
+    displayName: Build
+
+  - script: dotnet pack "$(project)" --configuration $(buildConfiguration) --no-build --output "$(Build.ArtifactStagingDirectory)"
+    displayName: Pack
+  # For a unique prerelease on every commit instead of a fixed version, replace
+  # the Pack step above with:
+  #   dotnet pack "$(project)" -c $(buildConfiguration) --no-build \
+  #     --version-suffix "ci.$(Build.BuildNumber)" \
+  #     -o "$(Build.ArtifactStagingDirectory)"
+  # (requires <VersionPrefix> instead of <Version> in Directory.Build.props)
+
+  - publish: $(Build.ArtifactStagingDirectory)
+    artifact: nupkg
+    displayName: Publish build artifact
+
+  - script: dotnet nuget push "$(Build.ArtifactStagingDirectory)/*.nupkg" --source "$(pushSource)" --api-key "$MYGET_API_KEY" --skip-duplicate
+    displayName: Push to umbracoprereleases
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    env:
+      MYGET_API_KEY: $(MYGET_API_KEY)
