@@ -63,26 +63,26 @@ stages:
     dependsOn: Build
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
     jobs:
-      - deployment: Push
+      - job: Push
         displayName: Push to MyGet
         pool:
           vmImage: windows-latest
-        environment: umbracoprereleases
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - download: current
-                  artifact: nupkg
-                  displayName: Download package artifact
+        steps:
+          # No 'environment:' here — that requires a pre-created/authorized ADO
+          # environment (used only for approval gates). To add a manual gate,
+          # create an environment in Pipelines -> Environments and convert this
+          # back to a 'deployment' job targeting it.
+          - download: current
+            artifact: nupkg
+            displayName: Download package artifact
 
-                - task: NuGetToolInstaller@1
-                  displayName: Install NuGet
+          - task: NuGetToolInstaller@1
+            displayName: Install NuGet
 
-                - task: NuGetCommand@2
-                  displayName: Push to umbracoprereleases
-                  inputs:
-                    command: push
-                    packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
-                    nuGetFeedType: external
-                    publishFeedCredentials: NuGet MyGet Prereleases Feed
+          - task: NuGetCommand@2
+            displayName: Push to umbracoprereleases
+            inputs:
+              command: push
+              packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
+              nuGetFeedType: external
+              publishFeedCredentials: NuGet MyGet Prereleases Feed
