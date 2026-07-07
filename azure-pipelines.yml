@@ -3,10 +3,14 @@
 # Builds, packs, and publishes the package to the PUBLIC Umbraco pre-releases
 # MyGet feed: https://www.myget.org/F/umbracoprereleases
 #
-# Auth: uses the ADO NuGet service connection "NuGet MyGet Prereleases Feed" via
-# NuGetAuthenticate@1 (the cross-platform Artifacts Credential Provider) — no
-# secret variables to manage. Everything runs with the .NET SDK, so no nuget.exe
-# and no Mono (which is why this runs fine on ubuntu-latest / 24.04).
+# Auth: `dotnet nuget push --api-key` with a SECRET pipeline variable.
+#   - Add a secret pipeline variable named MYGET_API_KEY containing a MyGet API
+#     key with PUSH rights to the umbracoprereleases feed. Never commit the key.
+#   NOTE: the "NuGet MyGet Prereleases Feed" service connection is an *ApiKey*
+#   connection, which NuGetAuthenticate@1 / the cross-platform credential
+#   provider do NOT support (only the legacy nuget.exe-based NuGetCommand@2 does,
+#   and that needs Mono on Linux). Using the key directly keeps this on the .NET
+#   SDK — no nuget.exe, no Mono — so it runs on ubuntu-latest.
 #
 # Versioning: the package version comes from Directory.Build.props. Bump it there
 # for a new release; --skip-duplicate makes re-runs on an unchanged version a
@@ -30,7 +34,7 @@ pool:
 variables:
   buildConfiguration: Release
   project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
-  pushSource: https://www.myget.org/F/umbracoprereleases/api/v3/index.json
+  pushSource: https://www.myget.org/F/umbracoprereleases/api/v2/package
 
 steps:
   - task: UseDotNet@2
@@ -52,11 +56,8 @@ steps:
     artifact: nupkg
     displayName: Publish build artifact
 
-  - task: NuGetAuthenticate@1
-    displayName: Authenticate to MyGet
-    inputs:
-      nuGetServiceConnections: NuGet MyGet Prereleases Feed
-
-  - script: dotnet nuget push "$(Build.ArtifactStagingDirectory)/*.nupkg" --source "$(pushSource)" --api-key az --skip-duplicate
+  - script: dotnet nuget push "$(Build.ArtifactStagingDirectory)/*.nupkg" --source "$(pushSource)" --api-key "$MYGET_API_KEY" --skip-duplicate
     displayName: Push to umbracoprereleases
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    env:
+      MYGET_API_KEY: $(MYGET_API_KEY)
