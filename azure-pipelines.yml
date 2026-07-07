@@ -3,13 +3,15 @@
 # Builds, packs, and publishes the package to the PUBLIC Umbraco pre-releases
 # MyGet feed: https://www.myget.org/F/umbracoprereleases
 #
-# Auth: uses the existing ADO NuGet service connection "NuGet MyGet Prereleases
-# Feed" (it holds the feed URL + push API key) — no secret variables to manage.
+# Auth: uses the ADO NuGet service connection "NuGet MyGet Prereleases Feed"
+# (it holds the feed URL + push API key) — no secret variables to manage.
+#
+# Runs on a Windows agent: the push uses NuGetCommand@2 (nuget.exe), which needs
+# Mono on Linux — and ubuntu-latest (24.04) no longer ships Mono. Windows runs
+# nuget.exe natively.
 #
 # Versioning: the package version comes from Directory.Build.props. Bump it there
-# for a new release; the push fails if that version already exists on the feed,
-# so bump per release. For a fresh prerelease on every commit, add a suffix (see
-# the commented alternative Pack step).
+# for a new release; the push fails if that version already exists on the feed.
 
 trigger:
   branches:
@@ -24,7 +26,7 @@ trigger:
 pr: none
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: windows-latest
 
 variables:
   buildConfiguration: Release
@@ -45,16 +47,13 @@ steps:
 
   - script: dotnet pack "$(project)" --configuration $(buildConfiguration) --no-build --output "$(Build.ArtifactStagingDirectory)"
     displayName: Pack
-  # For a unique prerelease on every commit instead of a fixed version, replace
-  # the Pack step above with:
-  #   dotnet pack "$(project)" -c $(buildConfiguration) --no-build \
-  #     --version-suffix "ci.$(Build.BuildNumber)" \
-  #     -o "$(Build.ArtifactStagingDirectory)"
-  # (requires <VersionPrefix> instead of <Version> in Directory.Build.props)
 
   - publish: $(Build.ArtifactStagingDirectory)
     artifact: nupkg
     displayName: Publish build artifact
+
+  - task: NuGetToolInstaller@1
+    displayName: Install NuGet
 
   - task: NuGetCommand@2
     displayName: Push to umbracoprereleases
