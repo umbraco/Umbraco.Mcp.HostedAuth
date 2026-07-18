@@ -17,7 +17,7 @@
 trigger:
   branches:
     include:
-      - main
+      - v17/main
   paths:
     include:
       - src/**
@@ -61,7 +61,7 @@ stages:
   - stage: Publish
     displayName: Publish to umbracoprereleases
     dependsOn: Build
-    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/v17/main'))
     jobs:
       - job: Push
         displayName: Push to MyGet
