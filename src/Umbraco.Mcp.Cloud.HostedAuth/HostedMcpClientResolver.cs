@@ -17,8 +17,8 @@ public static class HostedMcpClientResolver
     private const string Zone = "mcp.umbraco.ai";
 
     // Environment labels woven into the worker origin: prod is transparent, dev
-    // carries the ".dev" label (e.g. cms.editor.17.mcp.umbraco.ai and
-    // cms.editor.17.dev.mcp.umbraco.ai). Both are always registered so either
+    // carries the ".dev" label (e.g. cms.editor.18.mcp.umbraco.ai and
+    // cms.editor.18.dev.mcp.umbraco.ai). Both are always registered so either
     // worker can complete the flow.
     private static readonly string[] EnvironmentLabels = ["", "dev."];
 

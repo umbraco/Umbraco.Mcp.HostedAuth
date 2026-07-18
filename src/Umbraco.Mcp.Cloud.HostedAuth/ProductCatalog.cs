@@ -8,7 +8,7 @@ namespace Umbraco.Mcp.Cloud.HostedAuth;
 /// <param name="Key">
 /// Stable product key, used as the client-id and host-name segment
 /// (e.g. <c>cms</c> in <c>umbraco-cms-editor-mcp-hosted</c> /
-/// <c>cms.editor.17.mcp.umbraco.ai</c>).
+/// <c>cms.editor.18.mcp.umbraco.ai</c>).
 /// </param>
 /// <param name="LibraryPrefix">
 /// NuGet/runtime-library name prefix used to detect whether the product is
