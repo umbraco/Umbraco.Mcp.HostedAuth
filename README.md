@@ -139,6 +139,6 @@ Versioned via `Directory.Build.props`. Pushing a `v*` tag runs the
 NuGet.org using the `NUGET_API_KEY` repository secret.
 
 ```bash
-git tag v0.7.0
-git push origin v0.7.0
+git tag v17.0.0-beta.1
+git push origin v17.0.0-beta.1
 ```
