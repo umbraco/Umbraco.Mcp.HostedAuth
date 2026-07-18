@@ -18,8 +18,9 @@ It does three things:
 
 ## Requirements
 
-- Umbraco CMS **17.3.0+** (first version exposing
-  `SecuritySettings.GetUserAllowConcurrentLogins`).
+- Umbraco CMS **18.x** (this is the Umbraco 18 line; for CMS 17 use a
+  `0.7.x` release from the `v17/main` branch). Requires
+  `SecuritySettings.GetUserAllowConcurrentLogins`, present throughout 18.x.
 - An Umbraco **Cloud** project — the cold-start SSO fix relies on the
   `Umbraco.UmbracoId` external login scheme registered by `Umbraco.Cloud.Cms`,
   and the project alias is read from `umbraco-cloud.json`.
@@ -139,6 +140,6 @@ Versioned via `Directory.Build.props`. Pushing a `v*` tag runs the
 NuGet.org using the `NUGET_API_KEY` repository secret.
 
 ```bash
-git tag v0.7.0
-git push origin v0.7.0
+git tag v18.0.0-beta.1
+git push origin v18.0.0-beta.1
 ```

@@ -25,10 +25,11 @@
   <ItemGroup>
     <!-- Brings Umbraco.Cms.Core/Web.Common, UserLoginSuccessNotification, and the
          OpenIddict abstractions (IOpenIddictApplicationManager / IOpenIddictTokenManager)
-         transitively. Min 17.3.0 is the first to expose
-         SecuritySettings.GetUserAllowConcurrentLogins; min-bounded so the
+         transitively. This is the Umbraco 18 line; the 17 line lives on the
+         v17/main branch. Every API this package consumes is unchanged from 17.3.0
+         through 18.x (verified against release-18.0.2); min-bounded so the
          consuming project's CMS version wins. -->
-    <PackageReference Include="Umbraco.Cms.Api.Management" Version="[17.3.0, 18.0.0)" />
+    <PackageReference Include="Umbraco.Cms.Api.Management" Version="[18.0.0, 19.0.0)" />
   </ItemGroup>
 
 </Project>
