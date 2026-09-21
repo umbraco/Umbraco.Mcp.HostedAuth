@@ -1,13 +1,22 @@
 # Azure DevOps pipeline for Umbraco.Mcp.HostedAuth
 #
-# Two stages (CI packs, "release" pushes — the Umbraco pattern, all in YAML):
-#   Build   - ubuntu, .NET SDK: build + pack, publish the .nupkg as an artifact.
-#   Publish - a deployment job to the 'umbracoprereleases' environment; pushes to
-#             the MyGet feed via the "NuGet MyGet Prereleases Feed" service
-#             connection. Runs on windows-latest because that service connection
-#             is an ApiKey type, which only NuGetCommand@2 (nuget.exe) can consume
-#             — and nuget.exe needs Mono on Linux (removed from ubuntu 24.04), so
-#             the tiny push step runs on Windows where nuget.exe is native.
+# Three stages (CI packs, "release" pushes — the Umbraco pattern, all in YAML):
+#   Build           - ubuntu, .NET SDK: build + pack, publish the .nupkg as an artifact.
+#   Publish         - a deployment job to the 'umbracoprereleases' environment; pushes to
+#                     the MyGet feed via the "NuGet MyGet Prereleases Feed" service
+#                     connection. Runs on windows-latest because that service connection
+#                     is an ApiKey type, which only NuGetCommand@2 (nuget.exe) can consume
+#                     — and nuget.exe needs Mono on Linux (removed from ubuntu 24.04), so
+#                     the tiny push step runs on Windows where nuget.exe is native.
+#                     Fires on every push to main (i.e. every merged release PR, under
+#                     the repo's gitflow — main is protected, so this is release traffic
+#                     only, not every commit).
+#   PublishNuGetOrg - pushes to nuget.org. Fires on the v<version> tag that
+#                     .github/workflows/release-tag.yml creates once a release lands on
+#                     main — a separate pipeline run from the branch-push run above, since
+#                     a tag push's Build.SourceBranch is refs/tags/..., not refs/heads/main.
+#                     Needs a secret pipeline variable NuGetOrgApiKey (Pipeline -> Edit ->
+#                     Variables) holding a nuget.org API key scoped to this package.
 #
 # Add an approval on the 'umbracoprereleases' environment (Pipelines ->
 # Environments) if you want a manual gate before publishing.
@@ -18,6 +27,9 @@ trigger:
   branches:
     include:
       - main
+  tags:
+    include:
+      - v*
   paths:
     include:
       - src/**
@@ -86,3 +98,20 @@ stages:
               packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
               nuGetFeedType: external
               publishFeedCredentials: NuGet MyGet Prereleases Feed
+
+  - stage: PublishNuGetOrg
+    displayName: Publish to NuGet.org
+    dependsOn: Build
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'))
+    jobs:
+      - job: PushNuGetOrg
+        displayName: Push to NuGet.org
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - download: current
+            artifact: nupkg
+            displayName: Download package artifact
+
+          - script: dotnet nuget push "$(Pipeline.Workspace)/nupkg/*.nupkg" --api-key $(NuGetOrgApiKey) --source https://api.nuget.org/v3/index.json --skip-duplicate
+            displayName: Push to nuget.org

@@ -184,8 +184,34 @@ restarts don't sever active MCP sessions.
 
 ## Releasing
 
-Versioned via `Directory.Build.props`. The [Azure Pipeline](azure-pipelines.yml)
-builds and packs on every push to `main` under `src/**` or
-`Directory.Build.props`, then — still on `main` — pushes the `.nupkg` to the
-`umbracoprereleases` MyGet feed. There's no tag step; bump the version in
-`Directory.Build.props` and merge to `main` to release.
+This repo follows two-branch gitflow: day-to-day work branches off `dev` and
+PRs back into it; a release branches off `dev` into `release/<version>`,
+bumps `Directory.Build.props`, and PRs into `main` with a merge commit.
+
+Landing on `main` triggers, in order:
+
+1. **[Azure Pipeline](azure-pipelines.yml)** builds, packs, and pushes the
+   `.nupkg` to the `umbracoprereleases` MyGet feed (unchanged — fires on
+   every push to `main`, which under gitflow means every merged release).
+2. **[`release-tag`](.github/workflows/release-tag.yml)** tags the commit
+   `v<version>` and creates a GitHub Release (idempotent — a no-op if
+   `Directory.Build.props` didn't change).
+3. That tag push triggers the Azure Pipeline's **`PublishNuGetOrg`** stage,
+   which pushes the same `.nupkg` to [NuGet.org](https://www.nuget.org/packages/Umbraco.Mcp.HostedAuth) —
+   needs a `NuGetOrgApiKey` secret pipeline variable set up in Azure Pipelines.
+4. **[`sync-main-to-dev`](.github/workflows/sync-main-to-dev.yml)** opens a
+   PR merging `main` back into `dev`, so `dev` picks up the version bump.
+
+The `v17/main` line (CMS 17) mirrors this exactly, off `v17/dev` instead of
+`dev` — see its own copies of these three files.
+
+Publishing to NuGet.org (tagged `umbraco-marketplace`, see
+[`umbraco-marketplace.json`](umbraco-marketplace.json)) is also what gets
+this package listed on the [Umbraco Marketplace](https://marketplace.umbraco.com/) —
+listing itself is automatic, no submission step, synced nightly from NuGet.
+
+## Icon
+
+[`icon.png`](icon.png) is the official Model Context Protocol mark, from
+[modelcontextprotocol.io](https://modelcontextprotocol.io), licensed under
+[CC BY 4.0](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/LICENSE).
