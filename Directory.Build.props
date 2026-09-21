@@ -11,7 +11,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/hifi-phil/Umbraco.Mcp.HostedAuth</RepositoryUrl>
+    <RepositoryUrl>https://github.com/umbraco/Umbraco.Mcp.HostedAuth</RepositoryUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
 
     <IsPackable>false</IsPackable>
