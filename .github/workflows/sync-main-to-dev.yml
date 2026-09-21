@@ -1,0 +1,43 @@
+# After a release lands on v17/main, merge v17/main back into v17/dev so
+# v17/dev picks up the version bump and any release-branch fixes. Opens (or
+# updates) a PR from chore/merge-v17main-to-v17dev into v17/dev rather than
+# pushing directly, so the merge still goes through review + CI.
+
+name: sync-v17main-to-v17dev
+
+on:
+  push:
+    branches: [v17/main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open or update a v17/main -> v17/dev sync PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH=chore/merge-v17main-to-v17dev
+          git fetch origin v17/dev v17/main
+          git checkout -B "$BRANCH" origin/v17/main
+          git push -f origin "$BRANCH"
+
+          # create the PR if one isn't already open for this branch
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base v17/dev --head "$BRANCH" \
+              --title "chore: merge v17/main into v17/dev" \
+              --body  "Automated sync of release commits from v17/main back into v17/dev."
+          else
+            echo "sync PR already open for $BRANCH — nothing to do"
+          fi
