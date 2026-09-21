@@ -1,7 +1,7 @@
 using System.Globalization;
 using OpenIddict.Abstractions;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Builds the OpenIddict application descriptor for a hosted MCP client. Shared
@@ -57,9 +57,16 @@ public static class HostedMcpDescriptorFactory
 
         if (options.IncludeLocalhostCallback)
         {
-            foreach (string alias in aliases)
+            if (aliases.Count == 0)
             {
-                descriptor.RedirectUris.Add(new Uri($"{options.LocalhostCallback}/callback/{alias}"));
+                descriptor.RedirectUris.Add(new Uri($"{options.LocalhostCallback}/callback"));
+            }
+            else
+            {
+                foreach (string alias in aliases)
+                {
+                    descriptor.RedirectUris.Add(new Uri($"{options.LocalhostCallback}/callback/{alias}"));
+                }
             }
         }
 

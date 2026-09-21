@@ -4,7 +4,7 @@ using OpenIddict.Abstractions;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Registers each configured hosted MCP worker as an OpenIddict
@@ -23,17 +23,20 @@ public sealed class RegisterHostedMcpClientsHandler
 {
     private readonly IOpenIddictApplicationManager _applicationManager;
     private readonly CloudAliasProvider _aliasProvider;
+    private readonly HostedMcpModeResolver _modeResolver;
     private readonly HostedMcpOptions _options;
     private readonly ILogger<RegisterHostedMcpClientsHandler> _logger;
 
     public RegisterHostedMcpClientsHandler(
         IOpenIddictApplicationManager applicationManager,
         CloudAliasProvider aliasProvider,
+        HostedMcpModeResolver modeResolver,
         IOptions<HostedMcpOptions> options,
         ILogger<RegisterHostedMcpClientsHandler> logger)
     {
         _applicationManager = applicationManager;
         _aliasProvider = aliasProvider;
+        _modeResolver = modeResolver;
         _options = options.Value;
         _logger = logger;
     }
@@ -42,23 +45,39 @@ public sealed class RegisterHostedMcpClientsHandler
         UmbracoApplicationStartingNotification notification,
         CancellationToken cancellationToken)
     {
+        HostedMcpMode mode = _modeResolver.Resolve();
+
+        IReadOnlyList<ResolvedMcpClient> clients = HostedMcpClientResolver.Resolve(_options, mode);
+        if (clients.Count == 0)
+        {
+            _logger.LogInformation(
+                "[HostedMcp] No MCP clients to register ({Mode} mode; SelfHosted needs HostedMcp:Clients configured).",
+                mode);
+            return;
+        }
+
         // Baseline: register every known environment alias so authentication
         // works on any environment immediately, before the runtime reconciler
         // narrows to the actual one. A missing alias set would leave only the
         // legacy non-aliased callback, failing later with a cryptic
         // invalid_redirect_uri — so fail closed: skip registration (mutating
-        // nothing) rather than register unusable clients.
-        List<string> aliases = _aliasProvider.ResolveAliases().Where(IsValidAlias).ToList();
-        if (aliases.Count == 0)
+        // nothing) rather than register unusable clients. Self-hosted has no
+        // alias concept, so this only applies in Cloud mode.
+        List<string> aliases = [];
+        if (mode == HostedMcpMode.Cloud)
         {
-            _logger.LogError(
-                "[HostedMcp] No valid Cloud environment alias could be resolved; skipping MCP client "
-                + "registration to avoid creating clients with unusable callback URIs. Ensure "
-                + "umbraco-cloud.json (Deploy:Project:Alias / Workspaces) is present and valid.");
-            return;
+            aliases = _aliasProvider.ResolveAliases().Where(IsValidAlias).ToList();
+            if (aliases.Count == 0)
+            {
+                _logger.LogError(
+                    "[HostedMcp] No valid Cloud environment alias could be resolved; skipping MCP client "
+                    + "registration to avoid creating clients with unusable callback URIs. Ensure "
+                    + "umbraco-cloud.json (Deploy:Project:Alias / Workspaces) is present and valid.");
+                return;
+            }
         }
 
-        foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options))
+        foreach (ResolvedMcpClient client in clients)
         {
             OpenIddictApplicationDescriptor descriptor =
                 HostedMcpDescriptorFactory.Build(client, aliases, _options);

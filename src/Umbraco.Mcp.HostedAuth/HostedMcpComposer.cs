@@ -12,13 +12,14 @@ using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Web.Common.ApplicationBuilder;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Wires the hosted MCP worker auth glue into Umbraco: registers the configured
-/// workers as OpenIddict clients, installs the cold-start SSO short-circuit, and
-/// swaps the built-in login-token-revocation for an MCP-aware one. Driven by the
-/// <c>HostedMcp</c> configuration section; a no-op when disabled or unconfigured.
+/// workers as OpenIddict clients, installs the cold-start SSO short-circuit
+/// (Cloud mode only), and swaps the built-in login-token-revocation for an
+/// MCP-aware one. Driven by the <c>HostedMcp</c> configuration section; a no-op
+/// when disabled or unconfigured.
 /// </summary>
 public sealed class HostedMcpComposer : IComposer
 {
@@ -48,6 +49,7 @@ public sealed class HostedMcpComposer : IComposer
             builder.Config.GetSection(HostedMcpOptions.SectionName));
 
         builder.Services.AddSingleton<CloudAliasProvider>();
+        builder.Services.AddSingleton<HostedMcpModeResolver>();
         builder.Services.AddSingleton<ProtectedMcpApplicationStore>();
         builder.Services.AddSingleton<HostedMcpAliasReconciler>();
 
@@ -61,6 +63,8 @@ public sealed class HostedMcpComposer : IComposer
         RegisterAliasNarrowingMiddleware(builder);
 
         // Cold-start SSO short-circuit on the back-office cookie scheme.
+        // Registered unconditionally; it no-ops itself at request time outside
+        // Cloud mode (see McpExternalLoginShortCircuitCookieOptions).
         builder.Services.AddSingleton<IPostConfigureOptions<CookieAuthenticationOptions>,
             McpExternalLoginShortCircuitCookieOptions>();
 
@@ -114,7 +118,7 @@ public sealed class HostedMcpComposer : IComposer
             throw new InvalidOperationException(
                 $"[HostedMcp] Could not find the built-in '{BuiltInRevokeHandlerFullName}' registration "
                 + "for UserLoginSuccess to replace. This Umbraco version is not compatible with "
-                + "Umbraco.Cloud.Mcp.HostedAuth: without removing it, backoffice logins would revoke live "
+                + "Umbraco.Mcp.HostedAuth: without removing it, backoffice logins would revoke live "
                 + "MCP sessions. Upgrade the package or pin a supported CMS version.");
         }
 

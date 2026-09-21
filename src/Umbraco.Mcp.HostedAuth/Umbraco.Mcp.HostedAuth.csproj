@@ -6,16 +6,16 @@
     <Nullable>enable</Nullable>
 
     <IsPackable>true</IsPackable>
-    <PackageId>Umbraco.Mcp.Cloud.HostedAuth</PackageId>
-    <Title>Umbraco MCP Cloud Hosted Auth</Title>
+    <PackageId>Umbraco.Mcp.HostedAuth</PackageId>
+    <Title>Umbraco MCP Hosted Auth</Title>
     <Description>
-      Wires hosted Umbraco MCP Cloudflare Workers into the backoffice OAuth flow:
-      registers the workers as OpenIddict authorization_code clients, fixes
-      cold-start SSO on the management API authorize endpoint, and keeps MCP
-      sessions alive across backoffice logins without disabling single-session
-      enforcement globally.
+      Wires hosted Umbraco MCP Cloudflare Workers into the backoffice OAuth flow,
+      on Umbraco Cloud and self-hosted alike: registers the workers as OpenIddict
+      authorization_code clients, fixes cold-start SSO on the management API
+      authorize endpoint (Cloud), and keeps MCP sessions alive across backoffice
+      logins without disabling single-session enforcement globally.
     </Description>
-    <PackageTags>umbraco;umbraco-cloud;mcp;oauth;openiddict</PackageTags>
+    <PackageTags>umbraco;mcp;oauth;openiddict</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
