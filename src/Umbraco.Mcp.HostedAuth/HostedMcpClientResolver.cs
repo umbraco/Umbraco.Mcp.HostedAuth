@@ -1,15 +1,17 @@
 using Umbraco.Cms.Core.Composing;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>A hosted MCP client with all convention-derived values resolved.</summary>
 public sealed record ResolvedMcpClient(string ClientId, string DisplayName, IReadOnlyList<string> Origins);
 
 /// <summary>
-/// Produces the set of MCP clients to register by walking the
-/// <see cref="ProductCatalog"/>: a product is included when installed (or forced
-/// on via config), and each of its variants becomes a client whose id and
-/// origins follow the naming convention unless overridden.
+/// Produces the set of MCP clients to register. In <see cref="HostedMcpMode.Cloud"/>
+/// mode, walks the <see cref="ProductCatalog"/>: a product is included when
+/// installed (or forced on via config), and each of its variants becomes a
+/// client whose id and origins follow the naming convention unless overridden.
+/// In <see cref="HostedMcpMode.SelfHosted"/> mode, returns
+/// <see cref="HostedMcpOptions.Clients"/> as-is.
 /// </summary>
 public static class HostedMcpClientResolver
 {
@@ -27,8 +29,19 @@ public static class HostedMcpClientResolver
         => typeof(IComposer).Assembly.GetName().Version?.Major
            ?? throw new InvalidOperationException("Could not determine the Umbraco major version.");
 
-    public static IReadOnlyList<ResolvedMcpClient> Resolve(HostedMcpOptions options)
+    public static IReadOnlyList<ResolvedMcpClient> Resolve(HostedMcpOptions options, HostedMcpMode mode)
     {
+        if (mode == HostedMcpMode.SelfHosted)
+        {
+            return options.Clients
+                .Where(client => !string.IsNullOrWhiteSpace(client.ClientId) && client.Origins.Length > 0)
+                .Select(client => new ResolvedMcpClient(
+                    client.ClientId,
+                    string.IsNullOrWhiteSpace(client.DisplayName) ? client.ClientId : client.DisplayName,
+                    client.Origins))
+                .ToArray();
+        }
+
         int major = MajorVersion;
         var clients = new List<ResolvedMcpClient>();
 

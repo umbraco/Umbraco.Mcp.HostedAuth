@@ -1,4 +1,4 @@
-# Azure DevOps pipeline for Umbraco.Mcp.Cloud.HostedAuth
+# Azure DevOps pipeline for Umbraco.Mcp.HostedAuth
 #
 # Two stages (CI packs, "release" pushes — the Umbraco pattern, all in YAML):
 #   Build   - ubuntu, .NET SDK: build + pack, publish the .nupkg as an artifact.
@@ -28,7 +28,7 @@ pr: none
 
 variables:
   buildConfiguration: Release
-  project: src/Umbraco.Mcp.Cloud.HostedAuth/Umbraco.Mcp.Cloud.HostedAuth.csproj
+  project: src/Umbraco.Mcp.HostedAuth/Umbraco.Mcp.HostedAuth.csproj
 
 stages:
   - stage: Build

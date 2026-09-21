@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Resolves the known Cloud environment aliases (siteIds) from
@@ -29,12 +29,22 @@ public sealed class CloudAliasProvider
     }
 
     /// <summary>
+    /// Whether <c>umbraco-cloud.json</c> is present in the content root — the
+    /// signal <see cref="HostedMcpMode.Auto"/> uses to detect a Cloud project.
+    /// </summary>
+    public static bool HasCloudConfig(IHostEnvironment environment)
+        => File.Exists(CloudConfigPath(environment));
+
+    private static string CloudConfigPath(IHostEnvironment environment)
+        => Path.Combine(environment.ContentRootPath, "umbraco-cloud.json");
+
+    /// <summary>
     /// Returns the distinct known environment aliases, or an empty list when none
     /// are discoverable.
     /// </summary>
     public IReadOnlyList<string> ResolveAliases()
     {
-        string path = Path.Combine(_environment.ContentRootPath, "umbraco-cloud.json");
+        string path = CloudConfigPath(_environment);
         if (!File.Exists(path))
         {
             _logger.LogWarning(

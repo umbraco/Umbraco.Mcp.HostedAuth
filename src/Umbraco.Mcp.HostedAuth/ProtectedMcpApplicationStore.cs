@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Caches the OpenIddict application ids of the configured MCP clients so the
@@ -12,11 +12,15 @@ namespace Umbraco.Mcp.Cloud.HostedAuth;
 public sealed class ProtectedMcpApplicationStore
 {
     private readonly HostedMcpOptions _options;
+    private readonly HostedMcpModeResolver _modeResolver;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private volatile IReadOnlySet<string>? _cache;
 
-    public ProtectedMcpApplicationStore(IOptions<HostedMcpOptions> options)
-        => _options = options.Value;
+    public ProtectedMcpApplicationStore(IOptions<HostedMcpOptions> options, HostedMcpModeResolver modeResolver)
+    {
+        _options = options.Value;
+        _modeResolver = modeResolver;
+    }
 
     /// <summary>
     /// Returns the set of OpenIddict application ids whose tokens must survive a
@@ -40,7 +44,7 @@ public sealed class ProtectedMcpApplicationStore
             }
 
             var ids = new HashSet<string>(StringComparer.Ordinal);
-            foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options))
+            foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options, _modeResolver.Resolve()))
             {
                 var application = await applicationManager.FindByClientIdAsync(client.ClientId, cancellationToken);
                 if (application is null)

@@ -2,11 +2,12 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 // When an unauthenticated browser hits the management-API OAuth authorize
 // endpoint, the back-office cookie scheme by default redirects to
@@ -23,6 +24,12 @@ namespace Umbraco.Mcp.Cloud.HostedAuth;
 // Only intercepts browser GETs (Accept: text/html) for the authorize path, and
 // only when identity_provider isn't already in the query (so failure modes
 // inside AuthorizeExternal fall back to the default redirect without looping).
+//
+// Cloud-only: relies on the Umbraco.UmbracoId scheme registered by
+// Umbraco.Cloud.Cms. Gated at request time (via HostedMcpModeResolver, pulled
+// from the request's own service provider) rather than at registration time,
+// since resolving HostedMcpMode.Auto needs IHostEnvironment, which isn't
+// reliably available while composers are still running.
 internal sealed class McpExternalLoginShortCircuitCookieOptions
     : IPostConfigureOptions<CookieAuthenticationOptions>
 {
@@ -55,6 +62,13 @@ internal sealed class McpExternalLoginShortCircuitCookieOptions
 
         options.Events.OnRedirectToLogin = ctx =>
         {
+            HostedMcpModeResolver modeResolver =
+                ctx.HttpContext.RequestServices.GetRequiredService<HostedMcpModeResolver>();
+            if (modeResolver.Resolve() != HostedMcpMode.Cloud)
+            {
+                return previousLogin(ctx);
+            }
+
             string path = ctx.Request.Path.Value ?? string.Empty;
             bool isOAuthAuthorize = path.StartsWith(
                 OAuthAuthorizePath,

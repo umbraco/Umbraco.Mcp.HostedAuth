@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Narrows the registered callback URIs to the environment the app is actually
@@ -19,6 +19,7 @@ namespace Umbraco.Mcp.Cloud.HostedAuth;
 public sealed class HostedMcpAliasReconciler
 {
     private readonly CloudAliasProvider _aliasProvider;
+    private readonly HostedMcpModeResolver _modeResolver;
     private readonly HostedMcpOptions _options;
     private readonly ILogger<HostedMcpAliasReconciler> _logger;
 
@@ -28,10 +29,12 @@ public sealed class HostedMcpAliasReconciler
 
     public HostedMcpAliasReconciler(
         CloudAliasProvider aliasProvider,
+        HostedMcpModeResolver modeResolver,
         IOptions<HostedMcpOptions> options,
         ILogger<HostedMcpAliasReconciler> logger)
     {
         _aliasProvider = aliasProvider;
+        _modeResolver = modeResolver;
         _options = options.Value;
         _logger = logger;
     }
@@ -90,7 +93,7 @@ public sealed class HostedMcpAliasReconciler
             }
 
             string[] aliases = [siteId];
-            foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options))
+            foreach (ResolvedMcpClient client in HostedMcpClientResolver.Resolve(_options, _modeResolver.Resolve()))
             {
                 OpenIddictApplicationDescriptor descriptor =
                     HostedMcpDescriptorFactory.Build(client, aliases, _options);

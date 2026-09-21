@@ -1,15 +1,17 @@
-namespace Umbraco.Mcp.Cloud.HostedAuth;
+namespace Umbraco.Mcp.HostedAuth;
 
 /// <summary>
 /// Configuration for the hosted MCP worker auth glue. Bound from the
 /// <c>HostedMcp</c> configuration section.
 /// </summary>
 /// <remarks>
-/// Which clients get registered is driven by <b>installed-package detection</b>
-/// (see <see cref="ProductCatalog"/>): the CMS baseline is always registered,
-/// and Commerce/Engage/Workflow are registered when their packages are present.
-/// The <see cref="Products"/> map is for <b>overrides only</b> — forcing a
-/// product on/off or customising a specific client.
+/// In <see cref="HostedMcpMode.Cloud"/>, which clients get registered is driven
+/// by <b>installed-package detection</b> (see <see cref="ProductCatalog"/>): the
+/// CMS baseline is always registered, and Commerce/Engage/Workflow are
+/// registered when their packages are present. The <see cref="Products"/> map is
+/// for <b>overrides only</b> — forcing a product on/off or customising a
+/// specific client. In <see cref="HostedMcpMode.SelfHosted"/>, <see cref="Clients"/>
+/// is the explicit list of clients to register instead.
 /// </remarks>
 public sealed class HostedMcpOptions
 {
@@ -22,6 +24,20 @@ public sealed class HostedMcpOptions
     /// concurrent-login revoke handler is left untouched.
     /// </summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Which deployment this app is. <c>Auto</c> (the default) resolves to
+    /// <see cref="HostedMcpMode.Cloud"/> when <c>umbraco-cloud.json</c> is
+    /// present in the content root, otherwise <see cref="HostedMcpMode.SelfHosted"/>.
+    /// </summary>
+    public HostedMcpMode Mode { get; set; } = HostedMcpMode.Auto;
+
+    /// <summary>
+    /// Explicit clients to register in <see cref="HostedMcpMode.SelfHosted"/>
+    /// mode. Ignored in <see cref="HostedMcpMode.Cloud"/> mode, where clients
+    /// come from <see cref="ProductCatalog"/> instead.
+    /// </summary>
+    public List<SelfHostedClientOptions> Clients { get; set; } = new();
 
     /// <summary>Per-client access-token lifetime override for the server-wide default.</summary>
     public TimeSpan AccessTokenLifetime { get; set; } = TimeSpan.FromHours(1);
@@ -42,6 +58,32 @@ public sealed class HostedMcpOptions
     /// </summary>
     public Dictionary<string, ProductOverrideOptions> Products { get; set; }
         = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Which deployment an app is, for the purpose of client discovery.</summary>
+public enum HostedMcpMode
+{
+    /// <summary>Resolve to <see cref="Cloud"/> or <see cref="SelfHosted"/> based on whether <c>umbraco-cloud.json</c> is present.</summary>
+    Auto,
+
+    /// <summary>Umbraco Cloud: clients come from <see cref="ProductCatalog"/>, with alias narrowing and the SSO short-circuit.</summary>
+    Cloud,
+
+    /// <summary>Any other deployment: clients come from <see cref="HostedMcpOptions.Clients"/>, with no alias segment and no SSO short-circuit.</summary>
+    SelfHosted,
+}
+
+/// <summary>An explicit hosted MCP client to register in self-hosted mode.</summary>
+public sealed class SelfHostedClientOptions
+{
+    /// <summary>The OpenIddict client id, as configured on the deployed MCP worker.</summary>
+    public string ClientId { get; set; } = string.Empty;
+
+    /// <summary>OpenIddict display name. Defaults to <see cref="ClientId"/> when unset.</summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>The worker's origin(s), e.g. <c>https://mcp.example.com</c>.</summary>
+    public string[] Origins { get; set; } = [];
 }
 
 /// <summary>Overrides for a single product.</summary>

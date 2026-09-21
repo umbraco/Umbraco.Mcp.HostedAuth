@@ -1,9 +1,10 @@
-# Umbraco.Mcp.Cloud.HostedAuth
+# Umbraco.Mcp.HostedAuth
 
 Auth glue that wires hosted Umbraco **MCP Cloudflare Workers** into the Umbraco
-backoffice OAuth flow on Umbraco Cloud. Install the package, add a small
-`HostedMcp` configuration block, and the workers can authenticate users through
-the backoffice without any hand-written composers.
+backoffice OAuth flow — on Umbraco Cloud *and* self-hosted. Install the
+package, optionally add a small `HostedMcp` configuration block, and the
+workers can authenticate users through the backoffice without any
+hand-written composers.
 
 It does three things:
 
@@ -12,28 +13,47 @@ It does three things:
    drive the backoffice OAuth flow.
 2. **Fixes cold-start SSO** on the management-API authorize endpoint by bouncing
    unauthenticated browser hits through Umbraco ID (`identity_provider=Umbraco.UmbracoId`)
-   instead of dead-ending on the standalone login form.
+   instead of dead-ending on the standalone login form. **Cloud only.**
 3. **Keeps MCP sessions alive across backoffice logins** without weakening
-   security globally — see [Concurrent logins](#concurrent-logins).
+   security globally — see [Concurrent logins](#concurrent-logins). Both Cloud
+   and self-hosted.
+
+Client discovery, alias narrowing, and the SSO short-circuit are Cloud-only;
+see [Self-hosted](#self-hosted) for what changes when there's no
+`umbraco-cloud.json`.
 
 ## Requirements
 
 - Umbraco CMS **18.x** (this is the Umbraco 18 line; for CMS 17 use a
   `0.7.x` release from the `v17/main` branch). Requires
   `SecuritySettings.GetUserAllowConcurrentLogins`, present throughout 18.x.
-- An Umbraco **Cloud** project — the cold-start SSO fix relies on the
+- On Umbraco **Cloud**, the cold-start SSO fix relies on the
   `Umbraco.UmbracoId` external login scheme registered by `Umbraco.Cloud.Cms`,
-  and the project alias is read from `umbraco-cloud.json`.
+  and the project alias is read from `umbraco-cloud.json`. Self-hosted
+  installs don't need either.
 
 ## Install
 
 ```bash
-dotnet add package Umbraco.Mcp.Cloud.HostedAuth
+dotnet add package Umbraco.Mcp.HostedAuth
 ```
 
 The `HostedMcpComposer` is discovered automatically — no `Program.cs` changes.
 
-## What gets registered
+## Mode
+
+`HostedMcp:Mode` picks which of the two setups below applies:
+
+| Mode | Resolves to | Client discovery | Alias narrowing + SSO short-circuit |
+|---|---|---|---|
+| `Auto` (default) | `Cloud` if `umbraco-cloud.json` is present, else `SelfHosted` | — | — |
+| `Cloud` | itself | installed-package detection (below) | on |
+| `SelfHosted` | itself | explicit `HostedMcp:Clients` (below) | off |
+
+Existing Cloud projects need no config change — `Auto` already resolves to
+`Cloud` for them.
+
+## What gets registered (Cloud)
 
 Registration is **driven by installed packages** — you don't list clients. On
 startup the package walks a built-in catalog and registers a client per variant
@@ -49,7 +69,7 @@ startup the package walks a built-in catalog and registers a client per variant
 Detection reads the app's dependency context (`.deps.json`), so it reflects what
 is actually installed regardless of assembly load order.
 
-## Configuration
+## Configuration (Cloud)
 
 **None is required** — install the package and matching clients register
 themselves. The `HostedMcp` section exists for **overrides only**.
@@ -71,25 +91,54 @@ themselves. The `HostedMcp` section exists for **overrides only**.
 }
 ```
 
-### Options
+## Self-hosted
+
+With no `umbraco-cloud.json`, `Mode` resolves to `SelfHosted` automatically —
+set it explicitly only if you want to force one mode regardless of that file.
+List the clients you want registered under `Clients`; there's no
+product/variant convention and no per-environment alias, so each client is
+just an id and its worker's origin(s):
+
+```jsonc
+{
+  "HostedMcp": {
+    "Mode": "SelfHosted", // optional — Auto already resolves here without umbraco-cloud.json
+    "Clients": [
+      {
+        "ClientId": "umbraco-cms-editor-mcp-hosted",
+        "Origins": [ "https://mcp.example.com" ]
+      }
+    ]
+  }
+}
+```
+
+Redirect/logout URIs for a self-hosted client are just `{origin}/callback` and
+`{origin}/logout-callback` — no `/{alias}` segment. Everything else (per-client
+token lifetimes, idempotent update-in-place registration, the concurrent-login
+carve-out) works exactly as it does on Cloud.
+
+## Options
 
 | Key | Default | Notes |
 |---|---|---|
 | `Enabled` | `true` | Master switch; `false` makes the package a no-op. |
+| `Mode` | `Auto` | `Auto` \| `Cloud` \| `SelfHosted`. See [Mode](#mode). |
 | `AccessTokenLifetime` | `01:00:00` | Per-client access-token lifetime. |
 | `RefreshTokenLifetime` | `08:00:00` | Per-client refresh-token lifetime. |
 | `IncludeLocalhostCallback` | `true` | Register the local wrangler dev callback. |
 | `LocalhostCallback` | `http://127.0.0.1:8787` | Origin for the local dev callback. |
-| `Products.{key}.Enabled` | *(auto-detect)* | Force a product on/off, bypassing detection. |
-| `Products.{key}.Clients.{variant}.ClientId` | `umbraco-{key}-{variant}-mcp-hosted` | Override when the deployed worker's id differs. |
-| `Products.{key}.Clients.{variant}.DisplayName` | *(derived)* | OpenIddict display name. |
-| `Products.{key}.Clients.{variant}.Origins` | *(derived)* | Replaces the convention-derived origin list. |
+| `Clients[]` | *(empty)* | SelfHosted only. Explicit clients: `ClientId`, optional `DisplayName`, `Origins`. |
+| `Products.{key}.Enabled` | *(auto-detect)* | Cloud only. Force a product on/off, bypassing detection. |
+| `Products.{key}.Clients.{variant}.ClientId` | `umbraco-{key}-{variant}-mcp-hosted` | Cloud only. Override when the deployed worker's id differs. |
+| `Products.{key}.Clients.{variant}.DisplayName` | *(derived)* | Cloud only. OpenIddict display name. |
+| `Products.{key}.Clients.{variant}.Origins` | *(derived)* | Cloud only. Replaces the convention-derived origin list. |
 
 The zone (`mcp.umbraco.ai`), the Umbraco major version, and the Cloud alias are
 not configurable — the first two are fixed and the alias is read from
 `umbraco-cloud.json` (`Deploy:Project:Alias`).
 
-### Derived URLs
+## Derived URLs (Cloud)
 
 For each client, origins are `https://{key}.{variant}.{major}.[dev.]mcp.umbraco.ai`
 (prod + dev — both are always registered), and per origin the redirect/logout
@@ -135,11 +184,8 @@ restarts don't sever active MCP sessions.
 
 ## Releasing
 
-Versioned via `Directory.Build.props`. Pushing a `v*` tag runs the
-[release workflow](.github/workflows/release.yml), which packs and pushes to
-NuGet.org using the `NUGET_API_KEY` repository secret.
-
-```bash
-git tag v18.0.0-beta.1
-git push origin v18.0.0-beta.1
-```
+Versioned via `Directory.Build.props`. The [Azure Pipeline](azure-pipelines.yml)
+builds and packs on every push to `main` under `src/**` or
+`Directory.Build.props`, then — still on `main` — pushes the `.nupkg` to the
+`umbracoprereleases` MyGet feed. There's no tag step; bump the version in
+`Directory.Build.props` and merge to `main` to release.

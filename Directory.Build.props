@@ -2,16 +2,16 @@
 
   <!-- Shared metadata for all projects in this repo. -->
   <PropertyGroup>
-    <Version>18.0.0-beta.1</Version>
+    <Version>18.0.0-beta.2</Version>
     <Authors>Umbraco</Authors>
     <Company>Umbraco</Company>
-    <Product>Umbraco MCP Cloud Hosted Auth</Product>
+    <Product>Umbraco MCP Hosted Auth</Product>
     <Copyright>Copyright © Umbraco</Copyright>
 
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/hifi-phil/Umbraco.Mcp.Cloud.HostedAuth</RepositoryUrl>
+    <RepositoryUrl>https://github.com/hifi-phil/Umbraco.Mcp.HostedAuth</RepositoryUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
 
     <IsPackable>false</IsPackable>

@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Umbraco.Mcp.HostedAuth/Umbraco.Mcp.HostedAuth.csproj" />
+  </Folder>
+</Solution>
