@@ -190,7 +190,7 @@ bumps `Directory.Build.props`, and PRs into `main` with a merge commit.
 
 Landing on `main` triggers, in order:
 
-1. **[Azure Pipeline](azure-pipelines.yml)** builds, packs, and pushes the
+1. **[Azure Pipeline](build/azure-pipelines.yml)** builds, packs, and pushes the
    `.nupkg` to the `umbracoprereleases` MyGet feed (unchanged — fires on
    every push to `main`, which under gitflow means every merged release).
 2. **[`release-tag`](.github/workflows/release-tag.yml)** tags the commit
