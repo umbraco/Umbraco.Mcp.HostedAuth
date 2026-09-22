@@ -15,7 +15,7 @@
       authorize endpoint (Cloud), and keeps MCP sessions alive across backoffice
       logins without disabling single-session enforcement globally.
     </Description>
-    <PackageTags>umbraco;mcp;oauth;openiddict</PackageTags>
+    <PackageTags>umbraco;mcp;oauth;openiddict;umbraco-marketplace</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

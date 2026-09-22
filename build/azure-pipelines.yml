@@ -1,0 +1,132 @@
+# Azure DevOps pipeline for Umbraco.Mcp.HostedAuth
+#
+# Three stages (CI packs, "release" pushes — the Umbraco pattern, all in YAML):
+#   Build           - ubuntu, .NET SDK: build + pack, publish the .nupkg as an artifact.
+#   Publish         - a deployment job to the 'umbracoprereleases' environment; pushes to
+#                     the MyGet feed via the "NuGet MyGet Prereleases Feed" service
+#                     connection. Runs on windows-latest because that service connection
+#                     is an ApiKey type, which only NuGetCommand@2 (nuget.exe) can consume
+#                     — and nuget.exe needs Mono on Linux (removed from ubuntu 24.04), so
+#                     the tiny push step runs on Windows where nuget.exe is native.
+#                     Fires on every push to v17/main (i.e. every merged release PR, under
+#                     the repo's gitflow — v17/main is protected, so this is release traffic
+#                     only, not every commit).
+#   PublishNuGetOrg - pushes to nuget.org via the "Nuget" service connection (same
+#                     ApiKey-type / NuGetCommand@2 / windows-latest pattern as the MyGet
+#                     push above, and why). Fires on the v<version> tag that
+#                     .github/workflows/release-tag.yml creates once a release lands on
+#                     v17/main — a separate pipeline run from the branch-push run above, since
+#                     a tag push's Build.SourceBranch is refs/tags/..., not refs/heads/v17/main.
+#
+# Add an approval on the 'umbracoprereleases' environment (Pipelines ->
+# Environments) if you want a manual gate before publishing.
+#
+# Versioning: package version comes from Directory.Build.props.
+#
+# This file lives at build/azure-pipelines.yml, not the repo root. The Azure
+# DevOps pipeline definition's own "YAML file path" setting (Pipeline -> Edit
+# -> ... -> Triggers, or `az pipelines update --yaml-path`) must point here —
+# update it once this change actually reaches v17/main, not before: that
+# setting is shared by every branch the pipeline builds, and until this lands
+# on v17/main the live pipeline still needs it at the old root path.
+
+trigger:
+  branches:
+    include:
+      - v17/main
+  tags:
+    include:
+      - v*
+  paths:
+    include:
+      - src/**
+      - Directory.Build.props
+      - build/azure-pipelines.yml
+
+pr: none
+
+variables:
+  buildConfiguration: Release
+  project: src/Umbraco.Mcp.HostedAuth/Umbraco.Mcp.HostedAuth.csproj
+
+stages:
+  - stage: Build
+    displayName: Build & Pack
+    jobs:
+      - job: Pack
+        displayName: Build and pack
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UseDotNet@2
+            displayName: Install .NET 10 SDK
+            inputs:
+              packageType: sdk
+              version: 10.0.x
+
+          - script: dotnet restore "$(project)"
+            displayName: Restore
+
+          - script: dotnet build "$(project)" --configuration $(buildConfiguration) --no-restore
+            displayName: Build
+
+          - script: dotnet pack "$(project)" --configuration $(buildConfiguration) --no-build --output "$(Build.ArtifactStagingDirectory)/nupkg"
+            displayName: Pack
+
+          - publish: $(Build.ArtifactStagingDirectory)/nupkg
+            artifact: nupkg
+            displayName: Publish package artifact
+
+  - stage: Publish
+    displayName: Publish to umbracoprereleases
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/v17/main'))
+    jobs:
+      - job: Push
+        displayName: Push to MyGet
+        pool:
+          vmImage: windows-latest
+        steps:
+          # No 'environment:' here — that requires a pre-created/authorized ADO
+          # environment (used only for approval gates). To add a manual gate,
+          # create an environment in Pipelines -> Environments and convert this
+          # back to a 'deployment' job targeting it.
+          - download: current
+            artifact: nupkg
+            displayName: Download package artifact
+
+          - task: NuGetToolInstaller@1
+            displayName: Install NuGet
+
+          - task: NuGetCommand@2
+            displayName: Push to umbracoprereleases
+            inputs:
+              command: push
+              packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
+              nuGetFeedType: external
+              publishFeedCredentials: NuGet MyGet Prereleases Feed
+
+  - stage: PublishNuGetOrg
+    displayName: Publish to NuGet.org
+    dependsOn: Build
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'))
+    jobs:
+      - job: PushNuGetOrg
+        displayName: Push to NuGet.org
+        pool:
+          vmImage: windows-latest
+        steps:
+          - download: current
+            artifact: nupkg
+            displayName: Download package artifact
+
+          - task: NuGetToolInstaller@1
+            displayName: Install NuGet
+
+          - task: NuGetCommand@2
+            displayName: Push to NuGet.org
+            inputs:
+              command: push
+              packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
+              nuGetFeedType: external
+              publishFeedCredentials: Nuget
