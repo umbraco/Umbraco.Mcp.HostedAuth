@@ -1,0 +1,16 @@
+{
+  "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
+  "Category": "Developer Tools",
+  "AlternateCategory": "Artificial Intelligence",
+  "PackageType": "Package",
+  "AuthorDetails": {
+    "Name": "Umbraco HQ",
+    "Description": "Umbraco HQ",
+    "Url": "https://umbraco.com",
+    "ImageUrl": "https://github.com/umbraco.png"
+  },
+  "DocumentationUrl": "https://github.com/umbraco/Umbraco.Mcp.HostedAuth#readme",
+  "IssueTrackerUrl": "https://github.com/umbraco/Umbraco.Mcp.HostedAuth/issues",
+  "LicenseTypes": ["Free"],
+  "Tags": ["mcp", "oauth", "authentication"]
+}

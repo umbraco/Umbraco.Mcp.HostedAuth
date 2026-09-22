@@ -184,8 +184,13 @@ restarts don't sever active MCP sessions.
 
 ## Releasing
 
-Versioned via `Directory.Build.props`. The [Azure Pipeline](azure-pipelines.yml)
-builds and packs on every push to `main` under `src/**` or
-`Directory.Build.props`, then — still on `main` — pushes the `.nupkg` to the
-`umbracoprereleases` MyGet feed. There's no tag step; bump the version in
-`Directory.Build.props` and merge to `main` to release.
+Published to NuGet.org and the `umbracoprereleases` MyGet feed, which in
+turn gets it listed on the [Umbraco Marketplace](https://marketplace.umbraco.com/)
+(automatic, no submission step). For the full release process — branching,
+tagging, the pipeline — see [`CLAUDE.md`](CLAUDE.md).
+
+## Icon
+
+[`icon.png`](icon.png) is the official Model Context Protocol mark, from
+[modelcontextprotocol.io](https://modelcontextprotocol.io), licensed under
+[CC BY 4.0](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/LICENSE).

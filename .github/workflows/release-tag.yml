@@ -1,0 +1,46 @@
+# Tags + creates a GitHub Release when the version on Directory.Build.props
+# changes on main. Idempotent: skips if that tag already exists, so it only
+# actually fires when a release PR (release/<version> -> main) lands.
+#
+# The pushed tag (v<version>) is what triggers azure-pipelines.yml's
+# PublishNuGetOrg stage.
+
+name: release-tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # push tags + create releases
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so we can see whether the tag already exists
+
+      - name: Read version
+        id: v
+        run: echo "version=$(grep -oPm1 '(?<=<Version>)[^<]+' Directory.Build.props)" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether tag already exists
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tag + GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="v${{ steps.v.outputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" --title "$VERSION" --generate-notes
