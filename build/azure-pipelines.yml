@@ -11,12 +11,12 @@
 #                     Fires on every push to v17/main (i.e. every merged release PR, under
 #                     the repo's gitflow — v17/main is protected, so this is release traffic
 #                     only, not every commit).
-#   PublishNuGetOrg - pushes to nuget.org. Fires on the v<version> tag that
+#   PublishNuGetOrg - pushes to nuget.org via the "Nuget" service connection (same
+#                     ApiKey-type / NuGetCommand@2 / windows-latest pattern as the MyGet
+#                     push above, and why). Fires on the v<version> tag that
 #                     .github/workflows/release-tag.yml creates once a release lands on
 #                     v17/main — a separate pipeline run from the branch-push run above, since
 #                     a tag push's Build.SourceBranch is refs/tags/..., not refs/heads/v17/main.
-#                     Needs a secret pipeline variable NuGetOrgApiKey (Pipeline -> Edit ->
-#                     Variables) holding a nuget.org API key scoped to this package.
 #
 # Add an approval on the 'umbracoprereleases' environment (Pipelines ->
 # Environments) if you want a manual gate before publishing.
@@ -114,11 +114,19 @@ stages:
       - job: PushNuGetOrg
         displayName: Push to NuGet.org
         pool:
-          vmImage: ubuntu-latest
+          vmImage: windows-latest
         steps:
           - download: current
             artifact: nupkg
             displayName: Download package artifact
 
-          - script: dotnet nuget push "$(Pipeline.Workspace)/nupkg/*.nupkg" --api-key $(NuGetOrgApiKey) --source https://api.nuget.org/v3/index.json --skip-duplicate
-            displayName: Push to nuget.org
+          - task: NuGetToolInstaller@1
+            displayName: Install NuGet
+
+          - task: NuGetCommand@2
+            displayName: Push to NuGet.org
+            inputs:
+              command: push
+              packagesToPush: $(Pipeline.Workspace)/nupkg/*.nupkg
+              nuGetFeedType: external
+              publishFeedCredentials: Nuget

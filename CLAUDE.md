@@ -54,9 +54,8 @@ specifics:
   2. `.github/workflows/release-tag.yml` → tags `v<version>` + creates a
      GitHub Release. Idempotent — a no-op if `<Version>` didn't change.
   3. That tag push triggers `build/azure-pipelines.yml`'s `PublishNuGetOrg`
-     stage → nuget.org. Needs the `NuGetOrgApiKey` secret pipeline variable
-     in Azure Pipelines (Pipeline → Edit → Variables) — doesn't exist yet as
-     of this writing.
+     stage → nuget.org, via the `Nuget` Azure DevOps service connection
+     (same ApiKey/`NuGetCommand@2`/windows-latest pattern as the MyGet push).
   4. `.github/workflows/sync-main-to-dev.yml` → opens a PR merging
      `v17/main` back into `v17/dev`, so the version bump doesn't strand
      there.
