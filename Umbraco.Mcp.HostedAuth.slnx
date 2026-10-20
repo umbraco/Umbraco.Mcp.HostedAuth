@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Umbraco.Mcp.HostedAuth/Umbraco.Mcp.HostedAuth.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Umbraco.Mcp.HostedAuth.Tests/Umbraco.Mcp.HostedAuth.Tests.csproj" />
+  </Folder>
 </Solution>
