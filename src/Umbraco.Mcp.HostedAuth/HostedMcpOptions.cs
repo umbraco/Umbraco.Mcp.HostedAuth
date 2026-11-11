@@ -48,7 +48,11 @@ public sealed class HostedMcpOptions
     /// <summary>Whether to register the local-dev wrangler callback.</summary>
     public bool IncludeLocalhostCallback { get; set; } = true;
 
-    /// <summary>Origin used for the local-dev wrangler callback.</summary>
+    /// <summary>
+    /// Origin used for the local-dev wrangler callback. A loopback origin is
+    /// registered over both http and https (same host and port), so it works
+    /// with <c>wrangler dev</c> with or without <c>--local-protocol https</c>.
+    /// </summary>
     public string LocalhostCallback { get; set; } = "http://127.0.0.1:8787";
 
     /// <summary>
