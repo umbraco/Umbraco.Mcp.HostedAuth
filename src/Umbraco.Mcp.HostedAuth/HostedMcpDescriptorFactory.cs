@@ -57,19 +57,44 @@ public static class HostedMcpDescriptorFactory
 
         if (options.IncludeLocalhostCallback)
         {
-            if (aliases.Count == 0)
+            foreach (string origin in LocalhostCallbackOrigins(options.LocalhostCallback))
             {
-                descriptor.RedirectUris.Add(new Uri($"{options.LocalhostCallback}/callback"));
-            }
-            else
-            {
-                foreach (string alias in aliases)
+                if (aliases.Count == 0)
                 {
-                    descriptor.RedirectUris.Add(new Uri($"{options.LocalhostCallback}/callback/{alias}"));
+                    descriptor.RedirectUris.Add(new Uri($"{origin}/callback"));
+                }
+                else
+                {
+                    foreach (string alias in aliases)
+                    {
+                        descriptor.RedirectUris.Add(new Uri($"{origin}/callback/{alias}"));
+                    }
                 }
             }
         }
 
         return descriptor;
+    }
+
+    /// <summary>
+    /// Origins to register for the local-dev callback. A loopback origin
+    /// (<c>127.0.0.0/8</c>, <c>localhost</c>, <c>::1</c>) is registered over
+    /// both <c>http</c> and <c>https</c> on the same host and port, so
+    /// <c>wrangler dev</c> works whether or not it runs with
+    /// <c>--local-protocol https</c>. Any other origin is registered as given.
+    /// </summary>
+    public static IReadOnlyList<string> LocalhostCallbackOrigins(string localhostCallback)
+    {
+        string origin = localhostCallback.TrimEnd('/');
+
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri)
+            || !uri.IsLoopback
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return [origin];
+        }
+
+        string hostAndPort = uri.GetComponents(UriComponents.HostAndPort, UriFormat.UriEscaped);
+        return [$"http://{hostAndPort}", $"https://{hostAndPort}"];
     }
 }
