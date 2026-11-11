@@ -127,7 +127,7 @@ carve-out) works exactly as it does on Cloud.
 | `AccessTokenLifetime` | `01:00:00` | Per-client access-token lifetime. |
 | `RefreshTokenLifetime` | `08:00:00` | Per-client refresh-token lifetime. |
 | `IncludeLocalhostCallback` | `true` | Register the local wrangler dev callback. |
-| `LocalhostCallback` | `http://127.0.0.1:8787` | Origin for the local dev callback. |
+| `LocalhostCallback` | `http://127.0.0.1:8787` | Origin for the local dev callback. A loopback origin is registered over both `http` and `https` (same host and port), for `wrangler dev` with or without `--local-protocol https`. |
 | `Clients[]` | *(empty)* | SelfHosted only. Explicit clients: `ClientId`, optional `DisplayName`, `Origins`. |
 | `Products.{key}.Enabled` | *(auto-detect)* | Cloud only. Force a product on/off, bypassing detection. |
 | `Products.{key}.Clients.{variant}.ClientId` | `umbraco-{key}-{variant}-mcp-hosted` | Cloud only. Override when the deployed worker's id differs. |
@@ -146,7 +146,7 @@ URIs are:
 
 - `{origin}/callback` and `{origin}/callback/{alias}`
 - `{origin}/logout-callback` and `{origin}/logout-callback/{alias}`
-- plus `{LocalhostCallback}/callback/{alias}` when enabled.
+- plus `{LocalhostCallback}/callback/{alias}` when enabled, over both `http` and `https` for a loopback origin.
 
 `{alias}` is the environment's siteId. The hosted Worker builds its callback as
 `/callback/{siteId}`, and the siteId is the environment's own subdomain — so live
