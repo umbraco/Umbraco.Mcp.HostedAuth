@@ -2,7 +2,7 @@
 
   <!-- Shared metadata for all projects in this repo. -->
   <PropertyGroup>
-    <Version>18.0.0-beta.2</Version>
+    <Version>18.0.0-beta.3</Version>
     <Authors>Umbraco</Authors>
     <Company>Umbraco</Company>
     <Product>Umbraco MCP Hosted Auth</Product>
