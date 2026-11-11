@@ -12,8 +12,10 @@ It does three things:
    startup (redirect/logout URIs, extended token lifetimes), so the worker can
    drive the backoffice OAuth flow.
 2. **Fixes cold-start SSO** on the management-API authorize endpoint by bouncing
-   unauthenticated browser hits through Umbraco ID (`identity_provider=Umbraco.UmbracoId`)
-   instead of dead-ending on the standalone login form. **Cloud only.**
+   unauthenticated browser hits from the hosted MCP clients through Umbraco ID
+   (`identity_provider=Umbraco.UmbracoId`) instead of dead-ending on the
+   standalone login form. Other clients, including the backoffice itself, are
+   left alone. **Cloud only.**
 3. **Keeps MCP sessions alive across backoffice logins** without weakening
    security globally — see [Concurrent logins](#concurrent-logins). Both Cloud
    and self-hosted.
@@ -31,6 +33,10 @@ see [Self-hosted](#self-hosted) for what changes when there's no
   `Umbraco.UmbracoId` external login scheme registered by `Umbraco.Cloud.Cms`,
   and the project alias is read from `umbraco-cloud.json`. Self-hosted
   installs don't need either.
+- If a Cloud site doesn't reference `Umbraco.Cloud.Cms`, the `Umbraco.UmbracoId`
+  scheme isn't registered and the SSO redirect is skipped: hosted MCP
+  sign-ins fall back to the standard backoffice login, and a warning is
+  logged once. Everything else in the package still applies.
 
 ## Install
 

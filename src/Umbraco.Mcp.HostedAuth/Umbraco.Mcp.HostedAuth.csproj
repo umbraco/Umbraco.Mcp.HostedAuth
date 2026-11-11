@@ -23,6 +23,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Umbraco.Mcp.HostedAuth.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Brings Umbraco.Cms.Core/Web.Common, UserLoginSuccessNotification, and the
          OpenIddict abstractions (IOpenIddictApplicationManager / IOpenIddictTokenManager)
          transitively. This is the Umbraco 18 line; the 17 line lives on the

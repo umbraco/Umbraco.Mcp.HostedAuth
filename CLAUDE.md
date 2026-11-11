@@ -25,9 +25,12 @@ Never assume a change made on one line applies unmodified to the other.
 ```bash
 dotnet build src/Umbraco.Mcp.HostedAuth/Umbraco.Mcp.HostedAuth.csproj -c Release
 dotnet pack src/Umbraco.Mcp.HostedAuth/Umbraco.Mcp.HostedAuth.csproj -c Release --no-build -o /tmp/nupkg
+dotnet test Umbraco.Mcp.HostedAuth.slnx
 ```
 
-No test project exists yet. After any change to `Directory.Build.props`
+Unit tests live in `tests/Umbraco.Mcp.HostedAuth.Tests/` (xUnit). The Azure
+pipeline builds and packs only the package `.csproj`, so it doesn't run them —
+run them locally before a PR. After any change to `Directory.Build.props`
 (icon, README packaging, etc.), pack once and inspect the `.nupkg` — those
 `Exists()`-conditioned `<ItemGroup>` blocks are easy to get wrong silently.
 

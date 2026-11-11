@@ -25,11 +25,19 @@ namespace Umbraco.Mcp.HostedAuth;
 // only when identity_provider isn't already in the query (so failure modes
 // inside AuthorizeExternal fall back to the default redirect without looping).
 //
+// Only intercepts authorize requests from the hosted MCP clients this package
+// registers. Every other client — above all the backoffice's own
+// umbraco-back-office client — keeps the default redirect to /umbraco/login,
+// so this can never change how a normal backoffice sign-in works.
+//
 // Cloud-only: relies on the Umbraco.UmbracoId scheme registered by
 // Umbraco.Cloud.Cms. Gated at request time (via HostedMcpModeResolver, pulled
 // from the request's own service provider) rather than at registration time,
 // since resolving HostedMcpMode.Auto needs IHostEnvironment, which isn't
-// reliably available while composers are still running.
+// reliably available while composers are still running. A Cloud site that
+// doesn't reference Umbraco.Cloud.Cms has no such scheme, and redirecting to it
+// would make the authorize endpoint return 500 — so the scheme's presence is
+// checked too, and its absence falls back to the default redirect.
 internal sealed class McpExternalLoginShortCircuitCookieOptions
     : IPostConfigureOptions<CookieAuthenticationOptions>
 {
@@ -38,11 +46,17 @@ internal sealed class McpExternalLoginShortCircuitCookieOptions
 
     private const string IdentityProviderParam = "identity_provider";
 
+    private const string ClientIdParam = "client_id";
+
     // Registered by Umbraco.Cloud.Cms via AddUmbracoId →
     // AddMicrosoftIdentityWebApp(scheme: "Umbraco.UmbracoId").
     private const string ExternalLoginScheme = "Umbraco.UmbracoId";
 
     private readonly ILogger<McpExternalLoginShortCircuitCookieOptions> _logger;
+
+    // The missing-scheme warning fires on every cold-start MCP authorize, so
+    // it's logged once per process rather than per request.
+    private int _missingSchemeWarned;
 
     public McpExternalLoginShortCircuitCookieOptions(
         ILogger<McpExternalLoginShortCircuitCookieOptions> logger)
@@ -60,13 +74,16 @@ internal sealed class McpExternalLoginShortCircuitCookieOptions
         Func<RedirectContext<CookieAuthenticationOptions>, Task> previousLogin =
             options.Events.OnRedirectToLogin;
 
-        options.Events.OnRedirectToLogin = ctx =>
+        options.Events.OnRedirectToLogin = async ctx =>
         {
+            IServiceProvider services = ctx.HttpContext.RequestServices;
+
             HostedMcpModeResolver modeResolver =
-                ctx.HttpContext.RequestServices.GetRequiredService<HostedMcpModeResolver>();
+                services.GetRequiredService<HostedMcpModeResolver>();
             if (modeResolver.Resolve() != HostedMcpMode.Cloud)
             {
-                return previousLogin(ctx);
+                await previousLogin(ctx);
+                return;
             }
 
             string path = ctx.Request.Path.Value ?? string.Empty;
@@ -82,7 +99,33 @@ internal sealed class McpExternalLoginShortCircuitCookieOptions
 
             if (!isOAuthAuthorize || !isHtmlGet || alreadyHasIdentityProvider)
             {
-                return previousLogin(ctx);
+                await previousLogin(ctx);
+                return;
+            }
+
+            HostedMcpOptions hostedOptions =
+                services.GetRequiredService<IOptions<HostedMcpOptions>>().Value;
+            if (!IsHostedMcpClient(ctx.Request.Query[ClientIdParam].ToString(), hostedOptions))
+            {
+                await previousLogin(ctx);
+                return;
+            }
+
+            IAuthenticationSchemeProvider schemeProvider =
+                services.GetRequiredService<IAuthenticationSchemeProvider>();
+            if (await schemeProvider.GetSchemeAsync(ExternalLoginScheme) is null)
+            {
+                if (Interlocked.Exchange(ref _missingSchemeWarned, 1) == 0)
+                {
+                    _logger.LogWarning(
+                        "[HostedMcp] Skipping the cold-start SSO redirect: the '{Scheme}' authentication "
+                        + "scheme is not registered (it is added by Umbraco.Cloud.Cms). Hosted MCP "
+                        + "sign-ins will use the standard backoffice login instead.",
+                        ExternalLoginScheme);
+                }
+
+                await previousLogin(ctx);
+                return;
             }
 
             string pathAndQuery = ctx.Request.Path + ctx.Request.QueryString;
@@ -96,7 +139,13 @@ internal sealed class McpExternalLoginShortCircuitCookieOptions
                 redirectUrl);
 
             ctx.Response.Redirect(redirectUrl);
-            return Task.CompletedTask;
         };
     }
+
+    // Matches the client ids this package registers in Cloud mode, including
+    // any configured ClientId overrides. Ordinal, like OpenIddict's own lookup.
+    private static bool IsHostedMcpClient(string clientId, HostedMcpOptions options)
+        => !string.IsNullOrEmpty(clientId)
+           && HostedMcpClientResolver.Resolve(options, HostedMcpMode.Cloud)
+               .Any(client => string.Equals(client.ClientId, clientId, StringComparison.Ordinal));
 }
