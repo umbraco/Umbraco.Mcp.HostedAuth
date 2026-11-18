@@ -24,9 +24,10 @@ see [Self-hosted](#self-hosted) for what changes when there's no
 
 ## Requirements
 
-- Umbraco CMS **18.x** (this is the Umbraco 18 line; for CMS 17 use a
-  `0.7.x` release from the `v17/main` branch). Requires
-  `SecuritySettings.GetUserAllowConcurrentLogins`, present throughout 18.x.
+- Umbraco CMS **19.x** on .NET 11 (this is the Umbraco 19 line; for CMS 18
+  use an `18.x` release of this package, for CMS 17 a `17.x` release — the
+  package major matches the CMS major). Requires
+  `SecuritySettings.GetUserAllowConcurrentLogins`, present throughout 19.x.
 - On Umbraco **Cloud**, the cold-start SSO fix relies on the
   `Umbraco.UmbracoId` external login scheme registered by `Umbraco.Cloud.Cms`,
   and the project alias is read from `umbraco-cloud.json`. Self-hosted

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -25,11 +25,11 @@
   <ItemGroup>
     <!-- Brings Umbraco.Cms.Core/Web.Common, UserLoginSuccessNotification, and the
          OpenIddict abstractions (IOpenIddictApplicationManager / IOpenIddictTokenManager)
-         transitively. This is the Umbraco 18 line; the 17 line lives on the
-         v17/main branch. Every API this package consumes is unchanged from 17.3.0
-         through 18.x (verified against release-18.0.2); min-bounded so the
-         consuming project's CMS version wins. -->
-    <PackageReference Include="Umbraco.Cms.Api.Management" Version="[18.0.0, 19.0.0)" />
+         transitively. This is the Umbraco 19 line (net11.0); the 18 and 17
+         lines live on the v18/main and v17/main branches. Min-bounded so the
+         consuming project's CMS version wins; the lower bound is the first 19
+         release candidate so the package restores before 19.0.0 ships. -->
+    <PackageReference Include="Umbraco.Cms.Api.Management" Version="[19.0.0-rc1, 20.0.0)" />
   </ItemGroup>
 
 </Project>

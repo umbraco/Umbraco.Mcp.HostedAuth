@@ -59,10 +59,10 @@ stages:
           vmImage: ubuntu-latest
         steps:
           - task: UseDotNet@2
-            displayName: Install .NET 10 SDK
+            displayName: Install .NET 11 SDK
             inputs:
               packageType: sdk
-              version: 10.0.x
+              version: 11.0.x
 
           - script: dotnet restore "$(project)"
             displayName: Restore
