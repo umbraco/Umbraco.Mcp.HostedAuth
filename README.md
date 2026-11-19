@@ -35,7 +35,7 @@ see [Self-hosted](#self-hosted) for what changes when there's no
 ## Install
 
 ```bash
-dotnet add package Umbraco.Mcp.HostedAuth
+dotnet add package Umbraco.Mcp.HostedAuth --version "17.*"
 ```
 
 The `HostedMcpComposer` is discovered automatically — no `Program.cs` changes.
